@@ -4,14 +4,7 @@ from langchain.schema import StrOutputParser
 from .db import get_database
 import re
 
-# It's recommended to load the API key from environment variables
-# For example, using python-dotenv and a .env file
-# from dotenv import load_dotenv
-# load_dotenv()
-
 # Initialize the Ollama Language Model
-# This requires Ollama to be running locally on your machine.
-# You can change the model to any other model you have, e.g., "mistral"
 llm = ChatOllama(model="llama3", temperature=0.7)
 
 db = get_database()
@@ -59,23 +52,42 @@ def generate_trainee_profile(email: str) -> dict:
     """
     name_generation_prompt = PromptTemplate.from_template(
         "You are a helpful HR assistant. Based on the email address '{email}', "
-        "invent a plausible and professional-sounding full name. "
-        "Return only the full name and nothing else."
+        "generate a realistic and professional-sounding full name that could belong to this email. "
+        "The name should be appropriate for a corporate training environment. "
+        "Return only the full name (first and last name) and nothing else. "
+        "Example format: John Smith"
     )
+    
     password_generation_prompt = PromptTemplate.from_template(
-        "You are a secure password generator. Generate a unique, strong, temporary password for a new employee. "
-        "It should be at least 10 characters, include uppercase, lowercase, numbers, and a symbol. "
-        "Return only the password and nothing else."
+        "Generate a secure temporary password for a new employee training account. "
+        "The password must be exactly 12 characters long and include: "
+        "- At least 2 uppercase letters "
+        "- At least 2 lowercase letters "
+        "- At least 2 numbers "
+        "- At least 2 special characters from: !@#$%^&* "
+        "Make it memorable but secure. Return only the password and nothing else."
     )
+    
     name_chain = name_generation_prompt | llm | StrOutputParser()
     password_chain = password_generation_prompt | llm | StrOutputParser()
+    
     # Generate the name
     generated_name = name_chain.invoke({"email": email})
+    # Clean up the name (remove any extra text)
+    name_clean = re.sub(r'[^\w\s]', '', generated_name.strip())
+    
     # Generate the password
     generated_password = password_chain.invoke({})
+    # Clean up the password (remove any extra text, keep only the password)
+    password_clean = re.sub(r'[^\w!@#$%^&*]', '', generated_password.strip())
+    
+    # Ensure password meets minimum requirements
+    if len(password_clean) < 8:
+        password_clean = "TempPass123!"  # Fallback password
+    
     return {
-        "name": generated_name.strip(),
-        "password": generated_password.strip()
+        "name": name_clean,
+        "password": password_clean
     }
 
 async def create_trainee_profile(email: str) -> dict:
@@ -86,8 +98,9 @@ async def create_trainee_profile(email: str) -> dict:
     profile = generate_trainee_profile(email)
     # Get next sequential employee ID
     emp_id = await get_next_employee_id()
+    
     return {
         "name": profile["name"],
         "empId": emp_id,
         "password": profile["password"]
-    } 
+    }

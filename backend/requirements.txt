@@ -1,8 +1,10 @@
 fastapi
-uvicorn
+uvicorn[standard]
 motor
 pydantic[email]
 langchain
 langchain-community
 langchain-ollama
 mailjet-rest
+python-multipart
+bcrypt

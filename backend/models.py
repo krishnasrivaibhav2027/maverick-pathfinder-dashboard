@@ -12,17 +12,24 @@ class Trainee(BaseModel):
     score: int = 0
     status: str = "active"
     specialization: str = "Pending"
+    created_at: Optional[str] = None
+    last_login: Optional[str] = None
 
 class Admin(BaseModel):
     id: Optional[int] = Field(None, description="Unique identifier")
     name: str
     email: EmailStr
     password: str
+    role: str = "admin"
+    created_at: Optional[str] = None
 
 class LoginRequest(BaseModel):
     email: EmailStr
-    password: str
-    role: str # 'trainee' or 'admin'
+    password: Optional[str] = None  # Optional for new trainees
+    role: str  # 'trainee' or 'admin'
+
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
 
 class DashboardStats(BaseModel):
     totalTrainees: int
@@ -46,9 +53,24 @@ class Training(BaseModel):
     title: str
     status: str
     progress: int
+    description: Optional[str] = None
+    duration: Optional[str] = None
 
 class Task(BaseModel):
     id: Optional[int] = Field(None, description="Unique identifier")
     title: str
     due: str
-    priority: str 
+    priority: str
+    description: Optional[str] = None
+    assignedTo: Optional[str] = None
+    status: str = "pending"
+
+class UserProfile(BaseModel):
+    empId: str
+    name: str
+    email: EmailStr
+    phase: int
+    progress: int
+    score: int
+    specialization: str
+    status: str
