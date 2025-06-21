@@ -1,76 +1,112 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate } from "react-router-dom";
 import { Brain, Mail, Lock, User, Shield } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
+import { Label } from "@/components/ui/label";
+import { LogIn } from "lucide-react";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [isNewUser, setIsNewUser] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleLogin = (userType: 'trainee' | 'admin') => {
-    if (!email || !password) {
+  const handleLogin = async (role: 'trainee' | 'admin') => {
+    if (!email) {
       toast({
-        title: "Error",
-        description: "Please fill in all fields",
         variant: "destructive",
+        title: "Missing Information",
+        description: "Please enter your email address.",
       });
       return;
     }
 
-    // Simulate AI agent check for new user
-    if (email.includes('new') || isNewUser) {
+    // For new trainees, password is optional (they'll get it via email)
+    if (role === 'admin' && !password) {
       toast({
-        title: "AI Agent Activated",
-        description: "New user detected! Temporary credentials sent to your email.",
-        className: "bg-blue-50 border-blue-200 text-blue-800",
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please enter your password.",
       });
-      setTimeout(() => {
-        toast({
-          title: "Welcome to Mavericks!",
-          description: "Your Employee ID: MAV-2024-001. Please check your email for temporary password.",
-          className: "bg-green-50 border-green-200 text-green-800",
-        });
-      }, 2000);
+      return;
     }
 
-    setTimeout(() => {
-      if (userType === 'admin') {
-        navigate('/admin-dashboard');
-      } else {
-        navigate('/trainee-dashboard');
-      }
-    }, 3000);
-  };
+    setIsLoading(true);
 
-  const simulateNewUserDetection = () => {
-    setIsNewUser(true);
-    toast({
-      title: "AI Agent Processing",
-      description: "Analyzing user profile... New user detected!",
-      className: "bg-purple-50 border-purple-200 text-purple-800",
-    });
+    try {
+      const response = await fetch("http://127.0.0.1:8000/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, role }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        if (data.status === 'created') {
+          toast({
+            title: "Account Created Successfully!",
+            description: data.email_sent 
+              ? "Welcome! Your account has been created and credentials sent to your email." 
+              : "Account created but email delivery failed. Please contact support.",
+          });
+          
+          // For new trainees, show a message about checking email
+          if (data.email_sent) {
+            toast({
+              title: "Check Your Email",
+              description: "Your Employee ID and temporary password have been sent to your email address.",
+            });
+          }
+        } else {
+          toast({
+            title: "Login Successful",
+            description: "Redirecting to your dashboard...",
+          });
+        }
+
+        if (role === 'admin') {
+          navigate('/admin-dashboard');
+        } else {
+          const empId = data.user.empId;
+          navigate(`/trainee-dashboard/${empId}`);
+        }
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Login Failed",
+          description: data.detail || "Invalid credentials. Please try again.",
+        });
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "An Error Occurred",
+        description: "Could not connect to the server. Please try again later.",
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-100 to-indigo-200 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
-        {/* AI Agent Banner */}
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-4 mb-6 text-white text-center shadow-lg">
-          <Brain className="h-8 w-8 mx-auto mb-2 animate-pulse" />
-          <h2 className="text-lg font-semibold">AI Training Agent</h2>
+        <div className="text-center mb-8">
+          <div className="inline-block bg-white p-4 rounded-full shadow-lg">
+            <Brain className="h-10 w-10 text-blue-600" />
+          </div>
+          <h1 className="text-4xl font-bold text-gray-800 mt-4">Maverick Pathfinder</h1>
           <p className="text-sm opacity-90">Intelligent user onboarding system</p>
         </div>
 
         <Tabs defaultValue="trainee" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-6">
+          <TabsList className="grid w-full grid-cols-2 bg-white/50 backdrop-blur-sm">
             <TabsTrigger value="trainee" className="flex items-center gap-2">
               <User className="h-4 w-4" />
               Trainee
@@ -80,115 +116,91 @@ const Login = () => {
               Admin
             </TabsTrigger>
           </TabsList>
-
+          
           <TabsContent value="trainee">
-            <Card className="shadow-xl border-0">
-              <CardHeader className="text-center">
+            <Card className="shadow-2xl">
+              <CardHeader>
                 <CardTitle className="text-2xl font-bold text-gray-900">Trainee Login</CardTitle>
                 <CardDescription>
-                  Access your personalized training dashboard
+                  New trainees: Just enter your email. Existing trainees: Use your credentials.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      type="email"
-                      placeholder="Enter your email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 h-12"
-                    />
-                  </div>
+                  <Label htmlFor="trainee-email">Email</Label>
+                  <Input 
+                    id="trainee-email" 
+                    type="email" 
+                    placeholder="your.email@company.com" 
+                    value={email} 
+                    onChange={(e) => setEmail(e.target.value)} 
+                  />
                 </div>
                 <div className="space-y-2">
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      type="password"
-                      placeholder="Enter your password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 h-12"
-                    />
-                  </div>
-                </div>
-                
-                <Button
-                  onClick={() => handleLogin('trainee')}
-                  className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold rounded-xl"
-                >
-                  Sign In to Dashboard
-                </Button>
-
-                <div className="text-center">
-                  <Button
-                    variant="ghost"
-                    onClick={simulateNewUserDetection}
-                    className="text-sm text-blue-600 hover:text-blue-700"
-                  >
-                    New Employee? Click here for AI assistance
-                  </Button>
+                  <Label htmlFor="trainee-password">Password (Optional for new users)</Label>
+                  <Input 
+                    id="trainee-password" 
+                    type="password" 
+                    placeholder="Your password (if existing user)" 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)} 
+                  />
                 </div>
               </CardContent>
+              <CardFooter>
+                <Button 
+                  className="w-full" 
+                  onClick={() => handleLogin('trainee')}
+                  disabled={isLoading}
+                >
+                  <LogIn className="mr-2 h-4 w-4" /> 
+                  {isLoading ? "Processing..." : "Sign In / Create Account"}
+                </Button>
+              </CardFooter>
             </Card>
           </TabsContent>
 
           <TabsContent value="admin">
-            <Card className="shadow-xl border-0">
-              <CardHeader className="text-center">
+            <Card className="shadow-2xl">
+              <CardHeader>
                 <CardTitle className="text-2xl font-bold text-gray-900">Admin Portal</CardTitle>
-                <CardDescription>
-                  Monitor and manage all training programs
-                </CardDescription>
+                <CardDescription>Manage trainees and training content</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      type="email"
-                      placeholder="Admin email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="pl-10 h-12"
-                    />
-                  </div>
+                  <Label htmlFor="admin-email">Email</Label>
+                  <Input 
+                    id="admin-email" 
+                    type="email" 
+                    placeholder="admin@company.com" 
+                    value={email} 
+                    onChange={(e) => setEmail(e.target.value)} 
+                  />
                 </div>
                 <div className="space-y-2">
-                  <div className="relative">
-                    <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      type="password"
-                      placeholder="Admin password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="pl-10 h-12"
-                    />
-                  </div>
+                  <Label htmlFor="admin-password">Password</Label>
+                  <Input 
+                    id="admin-password" 
+                    type="password" 
+                    placeholder="Admin password" 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)} 
+                  />
                 </div>
-                
-                <Button
-                  onClick={() => handleLogin('admin')}
-                  className="w-full h-12 bg-gradient-to-r from-gray-700 to-gray-900 hover:from-gray-800 hover:to-black text-white font-semibold rounded-xl"
-                >
-                  Access Admin Dashboard
-                </Button>
               </CardContent>
+              <CardFooter>
+                <Button 
+                  className="w-full" 
+                  onClick={() => handleLogin('admin')}
+                  disabled={isLoading}
+                >
+                  <LogIn className="mr-2 h-4 w-4" /> 
+                  {isLoading ? "Processing..." : "Access Admin Dashboard"}
+                </Button>
+              </CardFooter>
             </Card>
           </TabsContent>
         </Tabs>
-
-        {/* AI Features Highlight */}
-        <div className="mt-6 bg-white/50 backdrop-blur-sm rounded-xl p-4 text-center">
-          <p className="text-sm text-gray-600 mb-2">✨ AI-Powered Features</p>
-          <div className="flex justify-center gap-4 text-xs text-gray-500">
-            <span>• Auto User Detection</span>
-            <span>• Credential Generation</span>
-            <span>• Smart Training Paths</span>
-          </div>
-        </div>
       </div>
     </div>
   );

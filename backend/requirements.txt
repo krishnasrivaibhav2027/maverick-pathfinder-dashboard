@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+motor
+pydantic[email]
+langchain
+langchain-community
+langchain-ollama
+mailjet-rest

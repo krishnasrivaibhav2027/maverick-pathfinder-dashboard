@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -18,13 +17,33 @@ import {
   User,
   LogOut
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
 const TraineeDashboard = () => {
   const navigate = useNavigate();
-  const [currentPhase] = useState(1);
-  const [phase1Score] = useState(85);
+  const { empId } = useParams();
+  const [trainee, setTrainee] = useState(null);
+
+  useEffect(() => {
+    if (empId) {
+      const fetchTrainee = async () => {
+        try {
+          const response = await fetch(`http://127.0.0.1:8000/trainees/${empId}`);
+          if (response.ok) {
+            const data = await response.json();
+            setTrainee(data);
+          } else {
+            console.error("Trainee not found");
+            setTrainee(null);
+          }
+        } catch (error) {
+          console.error("Failed to fetch trainee:", error);
+        }
+      };
+      fetchTrainee();
+    }
+  }, [empId]);
 
   // Mock data for charts
   const progressData = [
@@ -54,6 +73,10 @@ const TraineeDashboard = () => {
     { id: 4, title: "Version Control (Git)", status: "pending", progress: 0 },
   ];
 
+  if (!trainee) {
+    return <div>Loading...</div>; // Or a more sophisticated loading spinner
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
       {/* Header */}
@@ -66,7 +89,7 @@ const TraineeDashboard = () => {
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Mavericks Training</h1>
-                <p className="text-sm text-gray-600">Welcome back, John Doe (MAV-2024-001)</p>
+                <p className="text-sm text-gray-600">Welcome back, {trainee.name} ({trainee.empId})</p>
               </div>
             </div>
             <Button 
@@ -89,7 +112,7 @@ const TraineeDashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-blue-100">Overall Progress</p>
-                  <p className="text-3xl font-bold">85%</p>
+                  <p className="text-3xl font-bold">{trainee.progress}%</p>
                 </div>
                 <Target className="h-8 w-8 text-blue-200" />
               </div>
@@ -101,7 +124,7 @@ const TraineeDashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-green-100">Current Phase</p>
-                  <p className="text-3xl font-bold">Phase {currentPhase}</p>
+                  <p className="text-3xl font-bold">Phase {trainee.phase}</p>
                 </div>
                 <BookOpen className="h-8 w-8 text-green-200" />
               </div>
@@ -113,7 +136,7 @@ const TraineeDashboard = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-purple-100">Phase 1 Score</p>
-                  <p className="text-3xl font-bold">{phase1Score}%</p>
+                  <p className="text-3xl font-bold">{trainee.score}%</p>
                 </div>
                 <BarChart3 className="h-8 w-8 text-purple-200" />
               </div>
@@ -295,9 +318,9 @@ const TraineeDashboard = () => {
                   <div className="space-y-4">
                     <div className="flex justify-between items-center">
                       <span className="font-medium">Overall Progress</span>
-                      <span className="text-green-600 font-semibold">{phase1Score}%</span>
+                      <span className="text-green-600 font-semibold">{trainee.score}%</span>
                     </div>
-                    <Progress value={phase1Score} className="mb-4" />
+                    <Progress value={trainee.score} className="mb-4" />
                     
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
@@ -325,21 +348,21 @@ const TraineeDashboard = () => {
                     Phase 2: Domain Specialization
                   </CardTitle>
                   <CardDescription>
-                    {phase1Score >= 80 
+                    {trainee.score >= 80 
                       ? "Unlocked! Based on your performance, Python track recommended" 
-                      : `Locked - Complete Phase 1 with 80%+ score (Current: ${phase1Score}%)`
+                      : `Locked - Complete Phase 1 with 80%+ score (Current: ${trainee.score}%)`
                     }
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div className="text-center py-8">
-                      {phase1Score >= 80 ? (
+                      {trainee.score >= 80 ? (
                         <div>
                           <Brain className="h-12 w-12 text-blue-500 mx-auto mb-4" />
                           <p className="text-lg font-semibold text-blue-600">AI Recommendation: Python Track</p>
                           <p className="text-sm text-gray-600 mt-2">Based on your strong performance in algorithms and problem-solving</p>
-                          <Button className="mt-4" disabled={phase1Score < 85}>
+                          <Button className="mt-4" disabled={trainee.score < 85}>
                             Start Python Specialization
                           </Button>
                         </div>

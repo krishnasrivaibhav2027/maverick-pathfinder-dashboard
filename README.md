@@ -71,3 +71,32 @@ Yes, you can!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+## Backend (FastAPI)
+
+### Setup
+
+1. Navigate to the backend directory:
+   ```sh
+   cd backend
+   ```
+2. (Optional) Create and activate a virtual environment:
+   ```sh
+   python -m venv venv
+   # On Windows:
+   venv\Scripts\activate
+   # On macOS/Linux:
+   source venv/bin/activate
+   ```
+3. Install dependencies:
+   ```sh
+   pip install -r requirements.txt
+   ```
+
+### Running the FastAPI server
+
+```sh
+uvicorn main:app --reload
+```
+
+The server will start at http://127.0.0.1:8000

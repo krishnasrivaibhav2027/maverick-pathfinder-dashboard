@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,12 +18,29 @@ import {
   CheckCircle,
   AlertCircle
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Progress } from "@/components/ui/progress";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
+  const [trainees, setTrainees] = useState([]);
+
+  useEffect(() => {
+    const fetchTrainees = async () => {
+      try {
+        const response = await fetch("http://127.0.0.1:8000/trainees");
+        const data = await response.json();
+        setTrainees(data);
+      } catch (error) {
+        console.error("Failed to fetch trainees:", error);
+      }
+    };
+
+    fetchTrainees();
+  }, []);
 
   // Mock data
   const overallStats = {
@@ -33,14 +49,6 @@ const AdminDashboard = () => {
     completedPhase1: 45,
     avgScore: 82
   };
-
-  const trainees = [
-    { id: 1, name: "John Doe", empId: "MAV-2024-001", phase: 1, progress: 85, score: 87, status: "active", specialization: "Pending" },
-    { id: 2, name: "Jane Smith", empId: "MAV-2024-002", phase: 2, progress: 65, score: 92, status: "active", specialization: "Python" },
-    { id: 3, name: "Mike Johnson", empId: "MAV-2024-003", phase: 1, progress: 45, score: 78, status: "active", specialization: "Pending" },
-    { id: 4, name: "Sarah Wilson", empId: "MAV-2024-004", phase: 2, progress: 80, score: 88, status: "active", specialization: "Java" },
-    { id: 5, name: "David Brown", empId: "MAV-2024-005", phase: 1, progress: 92, score: 95, status: "active", specialization: "Pending" },
-  ];
 
   const phaseDistribution = [
     { name: 'Phase 1', value: 79, color: '#3b82f6' },
@@ -58,7 +66,7 @@ const AdminDashboard = () => {
 
   const filteredTrainees = trainees.filter(trainee => 
     trainee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    trainee.empId.toLowerCase().includes(searchTerm.toLowerCase())
+    (trainee.empId && trainee.empId.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
@@ -245,81 +253,68 @@ const AdminDashboard = () => {
           </TabsContent>
 
           <TabsContent value="trainees" className="space-y-6">
-            {/* Search and Filter */}
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex gap-4 items-center">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                    <Input
-                      placeholder="Search trainees by name or employee ID..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10"
-                    />
-                  </div>
-                  <Button variant="outline" className="flex items-center gap-2">
-                    <Filter className="h-4 w-4" />
-                    Filter
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Trainees Table */}
-            <Card>
-              <CardHeader>
-                <CardTitle>All Trainees</CardTitle>
-                <CardDescription>Comprehensive view of all training participants</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {filteredTrainees.map((trainee) => (
-                    <div key={trainee.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full flex items-center justify-center text-white font-semibold">
-                            {trainee.name.split(' ').map(n => n[0]).join('')}
+            <div>
+              <div className="relative mb-6">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Input
+                  type="search"
+                  placeholder="Search trainees by name or employee ID..."
+                  className="pl-10 w-full"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              
+              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredTrainees.map((trainee) => (
+                  <Link to={`/trainee-dashboard/${trainee.empId}`} key={trainee.empId} className="block text-inherit no-underline">
+                    <div className="border rounded-lg p-4 hover:bg-gray-50 transition-colors h-full flex flex-col">
+                      <CardContent className="p-0 flex-grow">
+                        <div className="space-y-4">
+                          <div className="flex items-center gap-4 border-b pb-4">
+                            <Avatar className="h-12 w-12">
+                              <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${trainee.name}`} />
+                              <AvatarFallback>{trainee.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <h3 className="font-semibold">{trainee.name}</h3>
+                              <p className="text-sm text-gray-600">{trainee.empId}</p>
+                            </div>
                           </div>
-                          <div>
-                            <h3 className="font-semibold">{trainee.name}</h3>
-                            <p className="text-sm text-gray-600">{trainee.empId}</p>
+                          <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <p className="text-gray-500">Phase</p>
+                              <Badge variant={trainee.phase === 2 ? "default" : "secondary"}>
+                                Phase {trainee.phase}
+                              </Badge>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Status</p>
+                              <Badge variant={trainee.status === 'active' ? 'default' : 'destructive'}>{trainee.status}</Badge>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Progress</p>
+                              <div className="flex items-center gap-2">
+                                <Progress value={trainee.progress} className="w-full" />
+                                <p className="font-semibold">{trainee.progress}%</p>
+                              </div>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Score</p>
+                              <p className="font-semibold text-green-600">{trainee.score}%</p>
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-gray-500">Specialization</p>
+                              <Badge variant="outline">{trainee.specialization}</Badge>
+                            </div>
                           </div>
                         </div>
-                        
-                        <div className="flex items-center gap-6">
-                          <div className="text-center">
-                            <p className="text-sm text-gray-600">Phase</p>
-                            <Badge variant={trainee.phase === 2 ? "default" : "secondary"}>
-                              Phase {trainee.phase}
-                            </Badge>
-                          </div>
-                          
-                          <div className="text-center">
-                            <p className="text-sm text-gray-600">Progress</p>
-                            <p className="font-semibold">{trainee.progress}%</p>
-                          </div>
-                          
-                          <div className="text-center">
-                            <p className="text-sm text-gray-600">Score</p>
-                            <p className="font-semibold text-green-600">{trainee.score}%</p>
-                          </div>
-                          
-                          <div className="text-center">
-                            <p className="text-sm text-gray-600">Specialization</p>
-                            <Badge variant="outline">{trainee.specialization}</Badge>
-                          </div>
-                          
-                          <Button size="sm" variant="outline">
-                            View Details
-                          </Button>
-                        </div>
-                      </div>
+                      </CardContent>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+                  </Link>
+                ))}
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
