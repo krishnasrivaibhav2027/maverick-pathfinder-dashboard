@@ -41,7 +41,7 @@ const Login = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/auth/login", {
+      const response = await fetch("http://localhost:8000/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, role }),
@@ -50,37 +50,18 @@ const Login = () => {
       const data = await response.json();
 
       if (response.ok) {
-        if (data.status === 'created') {
-          // New user created
-          setShowNewUserInfo(true);
-          
+        if (data.status === 'account_created') {
+          // New user account has been created. Show a success message and do not log in.
           toast({
-            title: "🎉 Account Created Successfully!",
-            description: data.email_sent 
-              ? "Your credentials have been sent to your email address." 
-              : "Account created but email delivery failed. Please contact support.",
+            title: "✅ Account Created",
+            description: data.message || "Please check your email for login credentials.",
+            duration: 5000,
           });
-          
-          // Show additional info for new users
-          if (data.email_sent) {
-            toast({
-              title: "📧 Check Your Email",
-              description: `Welcome ${data.user.name}! Your Employee ID (${data.user.empId}) and password have been sent to ${email}.`,
-            });
-          }
-
-          // Auto-redirect after showing success message
-          setTimeout(() => {
-            if (role === 'admin') {
-              navigate('/admin-dashboard');
-            } else {
-              const empId = data.user.empId;
-              navigate(`/trainee-dashboard/${empId}`);
-            }
-          }, 3000);
-          
-        } else {
-          // Existing user login
+          // Clear form fields
+          setEmail("");
+          setPassword("");
+        } else if (data.status === 'success') {
+          // Existing user login was successful
           toast({
             title: "✅ Login Successful",
             description: `Welcome back, ${data.user.name}!`,
@@ -123,7 +104,7 @@ const Login = () => {
     }
 
     try {
-      const response = await fetch("http://127.0.0.1:8000/auth/reset-password", {
+      const response = await fetch("http://localhost:8000/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),

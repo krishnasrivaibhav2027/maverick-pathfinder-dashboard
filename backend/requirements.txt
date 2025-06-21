@@ -5,6 +5,6 @@ pydantic[email]
 langchain
 langchain-community
 langchain-ollama
-mailjet-rest
+mailersend
 python-multipart
 bcrypt

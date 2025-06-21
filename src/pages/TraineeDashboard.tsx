@@ -29,7 +29,7 @@ const TraineeDashboard = () => {
     if (empId) {
       const fetchTrainee = async () => {
         try {
-          const response = await fetch(`http://127.0.0.1:8000/trainees/${empId}`);
+          const response = await fetch(`http://localhost:8000/trainees/${empId}`);
           if (response.ok) {
             const data = await response.json();
             setTrainee(data);
