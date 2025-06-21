@@ -1,5 +1,6 @@
+
 from mailersend import emails, domains
-from .config import settings
+from config import settings
 
 def send_welcome_email(user_email, user_name, emp_id, temp_password):
     """Send welcome email with credentials using a MailerSend template."""

@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -6,14 +7,14 @@ import asyncio
 import uuid
 from datetime import datetime
 
-from .db import get_database, test_db_connection, ensure_indexes
-from .models import (
+from db import get_database, test_db_connection, ensure_indexes
+from models import (
     Trainee, Admin, DashboardStats, WeeklyProgress, 
     PhaseDistribution, Training, Task, LoginRequest
 )
-from .ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations
-from .email_service import send_welcome_email, test_mailersend_connection
-from .config import settings
+from ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations
+from email_service import send_welcome_email, test_mailersend_connection
+from config import settings
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -248,4 +249,4 @@ async def update_trainee_progress(emp_id: str, progress_data: dict):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) 
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
