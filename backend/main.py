@@ -178,6 +178,21 @@ async def login(login_request: LoginRequest):
         print(f"❌ Login error: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
+@app.get("/admins")
+async def get_admins():
+    """Get all admins (without passwords for security)"""
+    try:
+        data = []
+        cursor = db["admins"].find({}, {"password": 0})  # Exclude passwords
+        async for document in cursor:
+            data.append(serialize_doc(document))
+        return JSONResponse(content={
+            "admins": data,
+            "count": len(data)
+        })
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching admins: {str(e)}")
+
 # Basic CRUD for trainees
 @app.get("/trainees")
 async def get_trainees():
