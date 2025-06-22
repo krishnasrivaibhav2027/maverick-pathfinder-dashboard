@@ -3,18 +3,22 @@ Configuration settings for Maverick Pathfinder Dashboard Backend
 """
 
 import os
+from dotenv import load_dotenv
 from typing import Optional
+
+# Load environment variables from .env file
+load_dotenv()
 
 class Settings:
     """Application settings"""
     
     # Database settings
-    MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb+srv://gksvaibav99:admin@cluster0.rc32pqz.mongodb.net/")
+    MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb+srv://gksvaibav99:admin@cluster0.rc32pqz.mongodb.net/maverick_dashboard?retryWrites=true&w=majority")
     DATABASE_NAME: str = os.getenv("DATABASE_NAME", "maverick_dashboard")
     
     # Email settings
     SENDER_EMAIL: str = os.getenv("SENDER_EMAIL", "gksvaibav99@gmail.com")
-    SENDER_NAME: str = os.getenv("SENDER_NAME", "AI Agent")
+    SENDER_NAME: str = os.getenv("SENDER_NAME", "Maverick Pathfinder Training")
     
     # SMTP settings for Gmail
     SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
@@ -34,11 +38,12 @@ class Settings:
     
     # CORS settings
     ALLOWED_ORIGINS: list = [
-        "http://localhost:8082",
-        "http://localhost:8081", 
         "http://localhost:8080",
+        "http://localhost:8081", 
+        "http://localhost:8082",
         "http://localhost:5173",
         "http://localhost:3000",
+        "https://localhost:8080",
     ]
     
     # Security settings
@@ -64,4 +69,4 @@ class Settings:
         }
 
 # Create settings instance
-settings = Settings() 
+settings = Settings()
