@@ -10,17 +10,17 @@ import os
 from pathlib import Path
 
 # Add the backend directory to Python path
-backend_dir = Path(__file__).parent
-sys.path.insert(0, str(backend_dir))
+# backend_dir = Path(__file__).parent
+# sys.path.insert(0, str(backend_dir))
 
 async def test_services():
     """Test all backend services"""
     print("🔧 Testing backend services...")
     
     try:
-        import db
-        import ai_agent
-        import email_service
+        from . import db
+        from . import ai_agent
+        from . import email_service
         
         # Test database connection
         print("📊 Testing database connection...")
@@ -32,13 +32,13 @@ async def test_services():
         ollama_status, ollama_message = await ai_agent.test_ollama_connection()
         print(f"   Ollama: {'✅' if ollama_status else '❌'} {ollama_message}")
         
-        # Test MailerSend connection
-        print("📧 Testing MailerSend connection...")
-        mailersend_status, mailersend_message = email_service.test_mailersend_connection()
-        print(f"   MailerSend: {'✅' if mailersend_status else '❌'} {mailersend_message}")
+        # Test Gmail SMTP connection
+        print("📧 Testing Gmail SMTP connection...")
+        smtp_status, smtp_message = email_service.test_smtp_connection()
+        print(f"   Gmail SMTP: {'✅' if smtp_status else '❌'} {smtp_message}")
         
         # Overall status
-        if db_status and ollama_status and mailersend_status:
+        if db_status and ollama_status and smtp_status:
             print("\n🎉 All services are ready!")
             return True
         else:
@@ -52,8 +52,8 @@ async def test_services():
 async def create_sample_admin():
     """Create a sample admin user if none exists"""
     try:
-        import db
-        import models
+        from . import db
+        from . import models
         from datetime import datetime
         
         database = db.get_database()
@@ -83,7 +83,7 @@ async def create_sample_admin():
 async def initialize_database():
     """Initialize database with required collections and indexes"""
     try:
-        import db
+        from . import db
         
         database = db.get_database()
         
@@ -126,4 +126,6 @@ async def main():
         sys.exit(1)
 
 if __name__ == "__main__":
+    # To run this script directly for setup, use:
+    # python -m backend.startup
     asyncio.run(main()) 

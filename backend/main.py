@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -7,14 +6,14 @@ import asyncio
 import uuid
 from datetime import datetime
 
-from db import get_database, test_db_connection, ensure_indexes
-from models import (
+from .db import get_database, test_db_connection, ensure_indexes
+from .models import (
     Trainee, Admin, DashboardStats, WeeklyProgress, 
     PhaseDistribution, Training, Task, LoginRequest
 )
-from ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations
-from email_service import send_welcome_email, test_mailersend_connection
-from config import settings
+from .ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations
+from .email_service import send_welcome_email, test_smtp_connection
+from .config import settings
 
 app = FastAPI(
     title=settings.APP_NAME,
@@ -50,14 +49,14 @@ async def startup_event():
     # Test all services
     db_status, db_message = await test_db_connection()
     ollama_status, ollama_message = await test_ollama_connection()
-    mailersend_status, mailersend_message = test_mailersend_connection()
+    smtp_status, smtp_message = test_smtp_connection()
     
     print(f"📊 Database: {'✅' if db_status else '❌'} {db_message}")
     print(f"🤖 Ollama: {'✅' if ollama_status else '❌'} {ollama_message}")
-    print(f"📧 MailerSend: {'✅' if mailersend_status else '❌'} {mailersend_message}")
+    print(f"📧 Gmail SMTP: {'✅' if smtp_status else '❌'} {smtp_message}")
     
-    if db_status and ollama_status and mailersend_status:
-        print("🎉 All services are ready!")
+    if db_status and ollama_status and smtp_status:
+        print("🎉 All critical services are ready!")
     else:
         print("⚠️  Some services are not ready. Check the configuration.")
 
@@ -66,9 +65,9 @@ async def read_root():
     """Health check endpoint that tests all services"""
     db_status, db_message = await test_db_connection()
     ollama_status, ollama_message = await test_ollama_connection()
-    mailersend_status, mailersend_message = test_mailersend_connection()
+    smtp_status, smtp_message = test_smtp_connection()
 
-    overall_status = "ok" if db_status and ollama_status and mailersend_status else "error"
+    overall_status = "ok" if db_status and ollama_status and smtp_status else "error"
 
     return JSONResponse(content={
         "application": settings.APP_NAME,
@@ -77,7 +76,7 @@ async def read_root():
         "services": {
             "database": {"status": "ok" if db_status else "error", "message": db_message},
             "ollama": {"status": "ok" if ollama_status else "error", "message": ollama_message},
-            "mailersend": {"status": "ok" if mailersend_status else "error", "message": mailersend_message},
+            "gmail_smtp": {"status": "ok" if smtp_status else "error", "message": smtp_message},
         }
     })
 
@@ -90,12 +89,12 @@ async def health_check():
 async def login(login_request: LoginRequest):
     """Handle user login with AI-generated profile creation for new trainees"""
     try:
-        user_collection = db[f"{login_request.role}s"]
-        user = await user_collection.find_one({"email": login_request.email})
+    user_collection = db[f"{login_request.role}s"]
+    user = await user_collection.find_one({"email": login_request.email})
 
-        if user:
+    if user:
             # Existing user login
-            if user.get("password") == login_request.password:
+        if user.get("password") == login_request.password:
                 # Update last login time
                 await user_collection.update_one(
                     {"_id": user["_id"]},
@@ -106,22 +105,22 @@ async def login(login_request: LoginRequest):
                     "user": serialize_doc(user),
                     "message": "Login successful"
                 })
-            else:
-                raise HTTPException(status_code=401, detail="Invalid credentials")
-        
+        else:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+    
         # New trainee registration
-        if login_request.role == 'trainee':
-            try:
+    if login_request.role == 'trainee':
+        try:
                 print(f"Creating new trainee profile for: {login_request.email}")
                 
                 # Generate AI profile with credentials
-                profile = await create_trainee_profile(login_request.email)
-                
+            profile = await create_trainee_profile(login_request.email)
+            
                 # Create trainee document
-                new_trainee = Trainee(
-                    name=profile["name"],
-                    email=login_request.email,
-                    password=profile["password"],
+            new_trainee = Trainee(
+                name=profile["name"],
+                email=login_request.email,
+                password=profile["password"],
                     empId=profile["empId"],
                     phase=1,
                     progress=0,
@@ -134,33 +133,47 @@ async def login(login_request: LoginRequest):
                 
                 # Store in database
                 result = await db.trainees.insert_one(new_trainee.dict())
-                
+            
                 if result.inserted_id:
                     print(f"✅ Trainee profile created successfully: {profile['empId']}")
                     
                     # Send welcome email with credentials
-                    send_welcome_email(
-                        login_request.email, 
-                        profile["name"], 
-                        profile["empId"], 
-                        profile["password"]
-                    )
-                    
+                    email_sent, email_message = send_welcome_email(
+                login_request.email, 
+                profile["name"], 
+                profile["empId"], 
+                profile["password"]
+            )
+            
+                    if not email_sent:
+                        # Log the error and inform the admin, but let the user know account was created
+                        print(f"⚠️  Email Warning: {email_message}")
+                        # Optionally, we could raise an HTTPException here, but it might be better
+                        # to let the user know their account is created and there was an email issue.
+                        return JSONResponse(
+                            content={
+                                "status": "account_created_email_failed",
+                                "message": "Account created, but failed to send welcome email. Please contact an admin.",
+                                "detail": email_message
+                            },
+                            status_code=201 # 201 Created
+                        )
+
                     # Return a message prompting the user to check their email
                     # DO NOT return the user object to prevent automatic login
-                    return JSONResponse(content={
+            return JSONResponse(content={
                         "status": "account_created", 
                         "message": "Account created successfully. Please check your email for login credentials."
-                    })
+            })
                 else:
                     raise HTTPException(status_code=500, detail="Failed to create trainee account")
                     
-            except Exception as e:
+        except Exception as e:
                 print(f"❌ Error creating trainee profile: {e}")
                 raise HTTPException(status_code=500, detail=f"Failed to create trainee profile: {str(e)}")
 
         # Admin registration not allowed
-        raise HTTPException(status_code=404, detail="Admin not found or new admin registration is not allowed.")
+    raise HTTPException(status_code=404, detail="Admin not found or new admin registration is not allowed.")
         
     except HTTPException:
         raise
@@ -173,11 +186,11 @@ async def login(login_request: LoginRequest):
 async def get_trainees():
     """Get all trainees"""
     try:
-        data = []
-        cursor = db["trainees"].find()
-        async for document in cursor:
-            data.append(serialize_doc(document))
-        return JSONResponse(content=data)
+    data = []
+    cursor = db["trainees"].find()
+    async for document in cursor:
+        data.append(serialize_doc(document))
+    return JSONResponse(content=data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching trainees: {str(e)}")
 
@@ -185,9 +198,9 @@ async def get_trainees():
 async def get_trainee_by_empid(emp_id: str):
     """Get trainee by employee ID"""
     try:
-        trainee = await db["trainees"].find_one({"empId": emp_id})
-        if trainee:
-            return JSONResponse(content=serialize_doc(trainee))
+    trainee = await db["trainees"].find_one({"empId": emp_id})
+    if trainee:
+        return JSONResponse(content=serialize_doc(trainee))
         raise HTTPException(status_code=404, detail="Trainee not found")
     except HTTPException:
         raise
@@ -249,4 +262,4 @@ async def update_trainee_progress(emp_id: str, progress_data: dict):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True) 

@@ -1,9 +1,8 @@
-
 from langchain_ollama import ChatOllama
 from langchain.prompts import PromptTemplate
 from langchain.schema import StrOutputParser
-from db import get_database
-from config import settings
+from .db import get_database
+from .config import settings
 import re
 import asyncio
 

@@ -12,17 +12,15 @@ class Settings:
     MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb+srv://gksvaibav99:admin@cluster0.rc32pqz.mongodb.net/")
     DATABASE_NAME: str = os.getenv("DATABASE_NAME", "maverick_dashboard")
     
-    # MailerSend settings
-    MAILERSEND_API_KEY: str = os.getenv("MAILERSEND_API_KEY", "mlsn.e761f383cddfe859071f8d2df8f18d48ce31c7367097ac1a39007c18ff178462")
-    MAILERSEND_TEMPLATE_ID: str = os.getenv("MAILERSEND_TEMPLATE_ID", "zr6ke4ne5934on12")
+    # Email settings
     SENDER_EMAIL: str = os.getenv("SENDER_EMAIL", "gksvaibav99@gmail.com")
     SENDER_NAME: str = os.getenv("SENDER_NAME", "AI Agent")
     
-    # SMTP settings from MailerSend
-    SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.mailersend.net")
+    # SMTP settings for Gmail
+    SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
-    SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "MS_aYOfca@test-2p0347z8nz3lzdrn.mlsender.net")
-    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "mssp.tcYYYvK.o65qngkjyy3lwr12.NDALZ7H")
+    SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "gksvaibav99@gmail.com")
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "kshtvjjtjmbtybbb")
     
     # Ollama settings
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -55,16 +53,6 @@ class Settings:
     def get_database_url(cls) -> str:
         """Get the complete database URL"""
         return cls.MONGODB_URL
-    
-    @classmethod
-    def get_mailersend_config(cls) -> dict:
-        """Get MailerSend configuration"""
-        return {
-            "api_key": cls.MAILERSEND_API_KEY,
-            "template_id": cls.MAILERSEND_TEMPLATE_ID,
-            "sender_email": cls.SENDER_EMAIL,
-            "sender_name": cls.SENDER_NAME
-        }
     
     @classmethod
     def get_ollama_config(cls) -> dict:
