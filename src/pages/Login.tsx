@@ -289,13 +289,6 @@ const Login = () => {
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </div>
-
-                <Alert className="border-blue-200 bg-blue-50">
-                  <AlertCircle className="h-4 w-4 text-blue-600" />
-                  <AlertDescription className="text-blue-800">
-                    <strong>First time here?</strong> Enter your name and email - our AI will generate your credentials and email them to you instantly!
-                  </AlertDescription>
-                </Alert>
               </CardContent>
               <CardFooter className="flex flex-col gap-2">
                 <Button
