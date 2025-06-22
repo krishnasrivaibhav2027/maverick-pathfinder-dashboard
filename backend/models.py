@@ -27,6 +27,7 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: Optional[str] = None  # Optional for new trainees
     role: str  # 'trainee' or 'admin'
+    name: Optional[str] = None  # Required for new trainees
 
 class PasswordResetRequest(BaseModel):
     email: EmailStr

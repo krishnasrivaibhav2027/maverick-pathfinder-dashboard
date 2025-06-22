@@ -1,176 +1,152 @@
-import smtplib
-import ssl
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from email.utils import formataddr
-from config import settings
+"""
+Email service using EmailJS for Maverick Pathfinder Dashboard
+Note: EmailJS requires frontend integration as it doesn't allow server-side API calls
+"""
 
-def send_welcome_email(user_email, user_name, emp_id, temp_password):
-    """Send welcome email with credentials using Gmail SMTP."""
+import json
+from typing import Dict, Any, Tuple
+from .config import settings
+
+def validate_emailjs_config():
+    """Validate EmailJS configuration"""
+    print("🔧 Validating EmailJS configuration...")
+    
+    # Print debug info
+    settings.print_config_debug()
+    
+    # Validate configuration
+    is_valid, message = settings.validate_emailjs_config()
+    if not is_valid:
+        print(f"❌ Configuration Error: {message}")
+        return False, message
+    
+    print("✅ EmailJS configuration is valid")
+    return True, "Configuration valid"
+
+def prepare_welcome_email_data(user_email: str, user_name: str, emp_id: str, temp_password: str) -> Dict[str, Any]:
+    """Prepare welcome email data for frontend EmailJS integration"""
     
     try:
-        # Validate SMTP configuration
-        if not settings.SMTP_PASSWORD or settings.SMTP_PASSWORD == "eljm tdjf ogmj mtmi":
-            raise ValueError("Gmail App Password not configured. Please set SMTP_PASSWORD in your environment.")
+        # Validate configuration first
+        is_valid, message = validate_emailjs_config()
+        if not is_valid:
+            return {"error": message}
         
-        # Create message
-        msg = MIMEMultipart('alternative')
-        msg['Subject'] = settings.WELCOME_EMAIL_SUBJECT
-        msg['From'] = formataddr((settings.SENDER_NAME, settings.SENDER_EMAIL))
-        msg['To'] = user_email
+        print(f"📧 Preparing EmailJS email data for {user_email}")
         
-        # Create HTML content
-        html_content = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <meta charset="utf-8">
-            <title>Welcome to Maverick Pathfinder</title>
-            <style>
-                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-                .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
-                .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }}
-                .credentials {{ background: #e8f4fd; border: 1px solid #bee5eb; border-radius: 5px; padding: 20px; margin: 20px 0; }}
-                .credential-item {{ margin: 10px 0; }}
-                .label {{ font-weight: bold; color: #495057; }}
-                .value {{ font-family: monospace; background: white; padding: 5px 10px; border-radius: 3px; border: 1px solid #dee2e6; }}
-                .button {{ display: inline-block; background: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
-                .footer {{ text-align: center; margin-top: 30px; color: #6c757d; font-size: 14px; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <h1>🎉 Welcome to Maverick Pathfinder!</h1>
-                    <p>Your AI-Powered Training Journey Begins</p>
-                </div>
-                <div class="content">
-                    <h2>Hello {user_name}!</h2>
-                    <p>Welcome to Maverick Pathfinder! Your account has been successfully created and you're now ready to begin your personalized training journey.</p>
-                    
-                    <div class="credentials">
-                        <h3>🔐 Your Login Credentials</h3>
-                        <div class="credential-item">
-                            <span class="label">Employee ID:</span>
-                            <span class="value">{emp_id}</span>
-                        </div>
-                        <div class="credential-item">
-                            <span class="label">Email:</span>
-                            <span class="value">{user_email}</span>
-                        </div>
-                        <div class="credential-item">
-                            <span class="label">Temporary Password:</span>
-                            <span class="value">{temp_password}</span>
-                        </div>
-                    </div>
-                    
-                    <p><strong>Important:</strong> Please change your password after your first login for security purposes.</p>
-                    
-                    <a href="http://localhost:8080" class="button">🚀 Start Your Training</a>
-                    
-                    <p>If you have any questions or need assistance, please don't hesitate to contact our support team.</p>
-                    
-                    <p>Best regards,<br>
-                    <strong>The Maverick Pathfinder Team</strong></p>
-                </div>
-                <div class="footer">
-                    <p>This is an automated message. Please do not reply to this email.</p>
-                    <p>&copy; 2024 Maverick Pathfinder. All rights reserved.</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
+        # Prepare the email data for frontend
+        email_data = {
+            "service_id": settings.EMAILJS_SERVICE_ID,
+            "template_id": settings.EMAILJS_TEMPLATE_ID,
+            "user_id": settings.EMAILJS_PUBLIC_KEY,
+            "template_params": {
+                "to_email": user_email,
+                "to_name": user_name,
+                "emp_id": emp_id,
+                "temp_password": temp_password,
+                "subject": settings.WELCOME_EMAIL_SUBJECT,
+                "sender_name": settings.SENDER_NAME,
+                "sender_email": settings.SENDER_EMAIL,
+                "app_url": "http://localhost:8080"
+            }
+        }
         
-        # Create plain text content
-        text_content = f"""
-        Welcome to Maverick Pathfinder!
+        print(f"✅ Email data prepared successfully for {user_email}")
+        return email_data
         
-        Hello {user_name},
-        
-        Welcome to Maverick Pathfinder! Your account has been successfully created and you're now ready to begin your personalized training journey.
-
-        Your Login Credentials:
-        - Employee ID: {emp_id}
-        - Email: {user_email}
-        - Temporary Password: {temp_password}
-
-        Important: Please change your password after your first login for security purposes.
-
-        Start your training at: http://localhost:8080
-
-        If you have any questions or need assistance, please don't hesitate to contact our support team.
-        
-        Best regards,
-        The Maverick Pathfinder Team
-
-        ---
-        This is an automated message. Please do not reply to this email.
-        © 2024 Maverick Pathfinder. All rights reserved.
-        """
-        
-        # Attach parts
-        msg.attach(MIMEText(text_content, 'plain'))
-        msg.attach(MIMEText(html_content, 'html'))
-        
-        # Create secure connection and send email
-        context = ssl.create_default_context()
-        
-        print(f"📧 Attempting to send email to {user_email}")
-        print(f"📧 Using SMTP server: {settings.SMTP_SERVER}:{settings.SMTP_PORT}")
-        print(f"📧 Authentication user: {settings.SMTP_USERNAME}")
-        
-        with smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT) as server:
-            server.set_debuglevel(1)  # Enable debug output
-            server.starttls(context=context)
-            server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
-            server.sendmail(settings.SENDER_EMAIL, user_email, msg.as_string())
-        
-        print(f"✅ Welcome email sent successfully to {user_email}")
-        return True, "Email sent successfully"
-        
-    except ValueError as e:
-        error_msg = str(e)
-        print(f"❌ Configuration Error: {error_msg}")
-        return False, error_msg
-    except smtplib.SMTPAuthenticationError as e:
-        error_msg = f"SMTP Authentication failed: {str(e)}. Make sure you're using a Gmail App Password, not your regular password."
-        print(f"❌ {error_msg}")
-        return False, error_msg
-    except smtplib.SMTPRecipientsRefused as e:
-        error_msg = f"Recipient email refused: {str(e)}"
-        print(f"❌ {error_msg}")
-        return False, error_msg
-    except smtplib.SMTPException as e:
-        error_msg = f"SMTP error occurred: {str(e)}"
-        print(f"❌ {error_msg}")
-        return False, error_msg
     except Exception as e:
-        error_msg = f"Unexpected error sending email: {str(e)}"
+        error_msg = f"Error preparing email data: {str(e)}"
         print(f"❌ {error_msg}")
-        return False, error_msg
+        return {"error": error_msg}
 
-def test_smtp_connection():
-    """Test the SMTP connection with detailed debugging."""
+def prepare_password_reset_email_data(user_email: str, user_name: str, reset_token: str) -> Dict[str, Any]:
+    """Prepare password reset email data for frontend EmailJS integration"""
+    
     try:
         # Validate configuration first
-        if not settings.SMTP_PASSWORD or settings.SMTP_PASSWORD == "eljm tdjf ogmj mtmi":
-            return False, "Gmail App Password not configured. Please set SMTP_PASSWORD environment variable."
+        is_valid, message = validate_emailjs_config()
+        if not is_valid:
+            return {"error": message}
         
-        print(f"🔧 Testing SMTP connection...")
-        print(f"📧 Server: {settings.SMTP_SERVER}:{settings.SMTP_PORT}")
-        print(f"📧 Username: {settings.SMTP_USERNAME}")
+        print(f"📧 Preparing password reset email data for {user_email}")
         
-        context = ssl.create_default_context()
+        # Prepare the email data for frontend
+        email_data = {
+            "service_id": settings.EMAILJS_SERVICE_ID,
+            "template_id": "template_password_reset",  # You'll need to create this template
+            "user_id": settings.EMAILJS_PUBLIC_KEY,
+            "template_params": {
+                "to_email": user_email,
+                "to_name": user_name,
+                "reset_token": reset_token,
+                "subject": settings.PASSWORD_RESET_SUBJECT,
+                "sender_name": settings.SENDER_NAME,
+                "sender_email": settings.SENDER_EMAIL,
+                "reset_url": f"http://localhost:8080/reset-password?token={reset_token}"
+            }
+        }
         
-        with smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT) as server:
-            server.set_debuglevel(1)  # Enable debug output
-            server.starttls(context=context)
-            server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
+        print(f"✅ Password reset email data prepared successfully for {user_email}")
+        return email_data
         
-        return True, "SMTP connection successful."
-    except smtplib.SMTPAuthenticationError as e:
-        return False, f"SMTP Authentication failed: {str(e)}. Please ensure you're using a Gmail App Password."
     except Exception as e:
-        return False, f"SMTP connection failed: {str(e)}"
+        error_msg = f"Error preparing password reset email data: {str(e)}"
+        print(f"❌ {error_msg}")
+        return {"error": error_msg}
+
+def test_emailjs_connection():
+    """Test EmailJS configuration (no actual connection test possible from backend)"""
+    try:
+        print("🔧 Testing EmailJS configuration...")
+        
+        # Validate configuration first
+        is_valid, message = validate_emailjs_config()
+        if not is_valid:
+            return False, message
+        
+        print("✅ EmailJS configuration is valid")
+        print("ℹ️  Note: EmailJS requires frontend integration for actual sending")
+        return True, "EmailJS configuration valid (frontend integration required)"
+        
+    except Exception as e:
+        return False, f"Unexpected error testing EmailJS: {e}"
+
+# Standalone test function
+def run_email_test():
+    """Run comprehensive EmailJS system test"""
+    print("🧪 Starting comprehensive EmailJS system test...")
+    
+    # Test 1: Configuration validation
+    success, message = validate_emailjs_config()
+    if not success:
+        print(f"❌ Test 1 Failed: {message}")
+        return
+    print("✅ Test 1 Passed: Configuration validation")
+    
+    # Test 2: EmailJS configuration
+    success, message = test_emailjs_connection()
+    if not success:
+        print(f"❌ Test 2 Failed: {message}")
+        return
+    print("✅ Test 2 Passed: EmailJS configuration")
+    
+    # Test 3: Prepare test email data
+    test_email = input("Enter test email address (or press Enter to skip): ").strip()
+    if test_email:
+        email_data = prepare_welcome_email_data(
+            test_email, 
+            "Test User", 
+            "TEST001", 
+            "TempPass123"
+        )
+        if "error" not in email_data:
+            print("✅ Test 3 Passed: Email data prepared successfully")
+            print(f"📧 Email data: {json.dumps(email_data, indent=2)}")
+        else:
+            print(f"❌ Test 3 Failed: {email_data['error']}")
+    
+    print("🎉 EmailJS system test completed!")
+    print("ℹ️  Remember: EmailJS requires frontend integration for actual sending")
+
+if __name__ == "__main__":
+    run_email_test()

@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse
 from bson import ObjectId
 import asyncio
 import uuid
@@ -12,7 +12,7 @@ from .models import (
     PhaseDistribution, Training, Task, LoginRequest
 )
 from .ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations
-from .email_service import send_welcome_email, test_smtp_connection
+from .email_service import test_emailjs_connection, prepare_welcome_email_data
 from .config import settings
 
 app = FastAPI(
@@ -49,13 +49,13 @@ async def startup_event():
     # Test all services
     db_status, db_message = await test_db_connection()
     ollama_status, ollama_message = await test_ollama_connection()
-    smtp_status, smtp_message = test_smtp_connection()
+    emailjs_status, emailjs_message = test_emailjs_connection()
     
     print(f"📊 Database: {'✅' if db_status else '❌'} {db_message}")
     print(f"🤖 Ollama: {'✅' if ollama_status else '❌'} {ollama_message}")
-    print(f"📧 Gmail SMTP: {'✅' if smtp_status else '❌'} {smtp_message}")
+    print(f"📧 EmailJS: {'✅' if emailjs_status else '❌'} {emailjs_message}")
     
-    if db_status and smtp_status:
+    if db_status and emailjs_status:
         print("🎉 Critical services are ready!")
     else:
         print("⚠️  Some critical services are not ready. Check the configuration.")
@@ -65,20 +65,65 @@ async def read_root():
     """Health check endpoint that tests all services"""
     db_status, db_message = await test_db_connection()
     ollama_status, ollama_message = await test_ollama_connection()
-    smtp_status, smtp_message = test_smtp_connection()
+    emailjs_status, emailjs_message = test_emailjs_connection()
 
-    overall_status = "ok" if db_status and smtp_status else "error"
+    overall_status = "ok" if db_status and emailjs_status else "error"
 
-    return JSONResponse(content={
-        "application": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "status": overall_status,
-        "services": {
-            "database": {"status": "ok" if db_status else "error", "message": db_message},
-            "ollama": {"status": "ok" if ollama_status else "error", "message": ollama_message},
-            "gmail_smtp": {"status": "ok" if smtp_status else "error", "message": smtp_message},
-        }
-    })
+    html_content = f"""
+    <html>
+    <head>
+        <title>{settings.APP_NAME} - Health Check</title>
+        <style>
+            body {{ font-family: Arial, sans-serif; margin: 40px; }}
+            table {{ border-collapse: collapse; width: 100%; }}
+            th, td {{ border: 1px solid #ddd; padding: 8px; text-align: left; }}
+            th {{ background-color: #f2f2f2; }}
+            .status-ok {{ color: green; }}
+            .status-error {{ color: red; }}
+        </style>
+    </head>
+    <body>
+        <h1>🚀 {settings.APP_NAME}</h1>
+        <p><strong>Version:</strong> {settings.APP_VERSION}</p>
+        <p><strong>Status:</strong> <span class="{'status-ok' if overall_status == 'ok' else 'status-error'}">{overall_status}</span></p>
+        
+        <h2>📊 Services Status</h2>
+        <table>
+            <tr>
+                <th>Service</th>
+                <th>Status</th>
+                <th>Message</th>
+            </tr>
+            <tr>
+                <td>📊 Database</td>
+                <td class="{'status-ok' if db_status else 'status-error'}">{'✅ OK' if db_status else '❌ Error'}</td>
+                <td>{db_message}</td>
+            </tr>
+            <tr>
+                <td>🤖 Ollama</td>
+                <td class="{'status-ok' if ollama_status else 'status-error'}">{'✅ OK' if ollama_status else '❌ Error'}</td>
+                <td>{ollama_message}</td>
+            </tr>
+            <tr>
+                <td>📧 EmailJS</td>
+                <td class="{'status-ok' if emailjs_status else 'status-error'}">{'✅ OK' if emailjs_status else '❌ Error'}</td>
+                <td>{emailjs_message}</td>
+            </tr>
+        </table>
+        
+        <h2>🔗 API Endpoints</h2>
+        <ul>
+            <li><a href="/health-check">/health-check</a> - JSON health check</li>
+            <li><a href="/trainees">/trainees</a> - List all trainees</li>
+            <li><a href="/admins">/admins</a> - List all admins</li>
+        </ul>
+        
+        <p><em>Frontend is available at: <a href="http://localhost:8080">http://localhost:8080</a></em></p>
+    </body>
+    </html>
+    """
+    
+    return HTMLResponse(content=html_content)
 
 @app.get("/health-check")
 async def health_check():
@@ -93,7 +138,12 @@ async def login(login_request: LoginRequest):
         user = await user_collection.find_one({"email": login_request.email})
 
         if user:
-            # Existing user login
+            # User exists - this is a login attempt
+            if not login_request.password:
+                # User exists but no password provided - this is invalid
+                raise HTTPException(status_code=400, detail="User already exists. Please login with your password.")
+            
+            # Existing user login with password
             if user.get("password") == login_request.password:
                 # Update last login time
                 await user_collection.update_one(
@@ -108,17 +158,21 @@ async def login(login_request: LoginRequest):
             else:
                 raise HTTPException(status_code=401, detail="Invalid credentials")
         
-        # New trainee registration
+        # User doesn't exist - this is a new user registration
         if login_request.role == 'trainee':
             try:
-                print(f"Creating new trainee profile for: {login_request.email}")
+                # Validate that name is provided for new trainees
+                if not login_request.name:
+                    raise HTTPException(status_code=400, detail="Name is required for new trainee registration")
                 
-                # Generate AI profile with credentials
+                print(f"Creating new trainee profile for: {login_request.email} - {login_request.name}")
+                
+                # Generate AI profile with credentials (but use provided name)
                 profile = await create_trainee_profile(login_request.email)
                 
-                # Create trainee document
+                # Create trainee document using provided name
                 new_trainee = Trainee(
-                    name=profile["name"],
+                    name=login_request.name,  # Use provided name instead of AI-generated
                     email=login_request.email,
                     password=profile["password"],
                     empId=profile["empId"],
@@ -137,30 +191,18 @@ async def login(login_request: LoginRequest):
                 if result.inserted_id:
                     print(f"✅ Trainee profile created successfully: {profile['empId']}")
                     
-                    # Send welcome email with credentials
-                    email_sent, email_message = send_welcome_email(
+                    # Prepare email data for frontend to send via EmailJS
+                    email_data = prepare_welcome_email_data(
                         login_request.email, 
-                        profile["name"], 
+                        login_request.name, 
                         profile["empId"], 
                         profile["password"]
                     )
-            
-                    if not email_sent:
-                        # Log the error but still create the account
-                        print(f"⚠️  Email Warning: {email_message}")
-                        return JSONResponse(
-                            content={
-                                "status": "account_created_email_failed",
-                                "message": "Account created, but failed to send welcome email. Please contact an admin.",
-                                "detail": email_message
-                            },
-                            status_code=201
-                        )
-
-                    # Return success message
+                    
                     return JSONResponse(content={
                         "status": "account_created", 
-                        "message": "Account created successfully. Please check your email for login credentials."
+                        "message": "Account created successfully. Please check your email for login credentials.",
+                        "emailData": email_data
                     })
                 else:
                     raise HTTPException(status_code=500, detail="Failed to create trainee account")

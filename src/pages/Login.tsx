@@ -9,10 +9,13 @@ import { useToast } from "@/components/ui/use-toast";
 import { Label } from "@/components/ui/label";
 import { LogIn } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { sendEmailJs } from "@/lib/emailjs";
+import { EmailJSTest } from "@/components/EmailJSTest";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showNewUserInfo, setShowNewUserInfo] = useState(false);
   const navigate = useNavigate();
@@ -38,28 +41,78 @@ const Login = () => {
       return;
     }
 
+    // For new trainees, name is required
+    if (role === 'trainee' && !password && !name) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please enter your name for new account creation.",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
+      const requestBody = { 
+        email, 
+        password, 
+        role,
+        ...(role === 'trainee' && !password && name && { name }) // Include name only for new trainees
+      };
+
       const response = await fetch("http://localhost:8000/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
 
       if (response.ok) {
         if (data.status === 'account_created') {
-          // New user account has been created. Show a success message and do not log in.
-          toast({
-            title: "✅ Account Created",
-            description: data.message || "Please check your email for login credentials.",
-            duration: 5000,
-          });
+          // New user account has been created. Send welcome email and show success message.
+          console.log('📧 Account created, checking for email data...', data);
+          
+          if (data.emailData) {
+            console.log('📧 Email data received from backend:', data.emailData);
+            try {
+              const emailResult = await sendEmailJs(data.emailData);
+              console.log('📧 Email sending result:', emailResult);
+              
+              if (emailResult.success) {
+                toast({
+                  title: "✅ Account Created & Email Sent",
+                  description: "Account created successfully! Check your email for login credentials.",
+                  duration: 5000,
+                });
+              } else {
+                toast({
+                  title: "✅ Account Created",
+                  description: `Account created, but email sending failed: ${emailResult.message}`,
+                  duration: 5000,
+                });
+              }
+            } catch (emailError) {
+              console.error("Email sending error:", emailError);
+              toast({
+                title: "✅ Account Created",
+                description: "Account created, but email sending failed. Please contact support.",
+                duration: 5000,
+              });
+            }
+          } else {
+            console.log('❌ No email data received from backend');
+            toast({
+              title: "✅ Account Created",
+              description: data.message || "Please check your email for login credentials.",
+              duration: 5000,
+            });
+          }
           // Clear form fields
           setEmail("");
           setPassword("");
+          setName("");
         } else if (data.status === 'success') {
           // Existing user login was successful
           toast({
@@ -75,10 +128,18 @@ const Login = () => {
           }
         }
       } else {
+        // Handle specific error messages
+        let errorMessage = data.detail || "Invalid credentials. Please try again.";
+        
+        // Special handling for existing users without password
+        if (data.detail && data.detail.includes("User already exists")) {
+          errorMessage = "This email is already registered. Please enter your password to login.";
+        }
+        
         toast({
           variant: "destructive",
           title: "Login Failed",
-          description: data.detail || "Invalid credentials. Please try again.",
+          description: errorMessage,
         });
       }
     } catch (error) {
@@ -170,11 +231,21 @@ const Login = () => {
               <CardHeader>
                 <CardTitle className="text-2xl font-bold text-gray-900">Trainee Portal</CardTitle>
                 <CardDescription>
-                  <strong>New trainees:</strong> Just enter your email - we'll create your account automatically!<br/>
+                  <strong>New trainees:</strong> Enter your name and email - we'll create your account automatically!<br/>
                   <strong>Existing trainees:</strong> Use your email and password from the welcome email.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="trainee-name">Full Name (Required for new users)</Label>
+                  <Input 
+                    id="trainee-name" 
+                    type="text" 
+                    placeholder="Enter your full name" 
+                    value={name} 
+                    onChange={(e) => setName(e.target.value)} 
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="trainee-email">Email Address</Label>
                   <Input 
@@ -275,6 +346,11 @@ const Login = () => {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* EmailJS Test Component - Remove after testing */}
+        <div className="mt-8">
+          <EmailJSTest />
+        </div>
 
         <div className="text-center mt-6 text-sm text-gray-600">
           <p>🤖 Powered by AI • 🔒 Secure Authentication • 📧 Automated Onboarding</p>
