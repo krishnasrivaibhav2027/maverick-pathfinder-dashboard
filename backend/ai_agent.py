@@ -1,12 +1,16 @@
-from langchain_ollama import ChatOllama
-from langchain.prompts import PromptTemplate
-from langchain.schema import StrOutputParser
+import random
+import string
 from .db import get_database
 from .config import settings
 import re
 import asyncio
 
-# Initialize the Ollama Language Model with configuration
+# Keep Ollama only for training recommendations where AI adds value
+from langchain_ollama import ChatOllama
+from langchain.prompts import PromptTemplate
+from langchain.schema import StrOutputParser
+
+# Initialize the Ollama Language Model with configuration (only for recommendations)
 llm = ChatOllama(
     model=settings.OLLAMA_MODEL, 
     temperature=settings.OLLAMA_TEMPERATURE,
@@ -14,6 +18,115 @@ llm = ChatOllama(
 )
 
 db = get_database()
+
+# Sample data for name generation
+FIRST_NAMES = [
+    "John", "Jane", "Michael", "Sarah", "David", "Emily", "Robert", "Jessica",
+    "William", "Ashley", "James", "Amanda", "Christopher", "Stephanie", "Daniel",
+    "Nicole", "Matthew", "Elizabeth", "Anthony", "Helen", "Mark", "Deborah",
+    "Donald", "Rachel", "Steven", "Carolyn", "Paul", "Janet", "Andrew", "Catherine",
+    "Joshua", "Maria", "Kenneth", "Heather", "Kevin", "Diane", "Brian", "Julie",
+    "George", "Joyce", "Timothy", "Victoria", "Ronald", "Kelly", "Jason", "Christine",
+    "Edward", "Joan", "Jeffrey", "Evelyn", "Ryan", "Lauren", "Jacob", "Judith",
+    "Gary", "Megan", "Nicholas", "Cheryl", "Eric", "Andrea", "Jonathan", "Jacqueline",
+    "Stephen", "Martha", "Larry", "Frances", "Justin", "Gloria", "Scott", "Ann",
+    "Brandon", "Teresa", "Benjamin", "Kathryn", "Samuel", "Samantha", "Gregory", "Christina",
+    "Frank", "Beverly", "Alexander", "Denise", "Raymond", "Marilyn", "Patrick", "Charlotte",
+    "Jack", "Florence", "Dennis", "Irene", "Jerry", "Jean", "Tyler", "Lisa", "Aaron", "Theresa"
+]
+
+LAST_NAMES = [
+    "Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis",
+    "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson",
+    "Thomas", "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson",
+    "White", "Harris", "Sanchez", "Clark", "Ramirez", "Lewis", "Robinson", "Walker",
+    "Young", "Allen", "King", "Wright", "Scott", "Torres", "Nguyen", "Hill", "Flores",
+    "Green", "Adams", "Nelson", "Baker", "Hall", "Rivera", "Campbell", "Mitchell",
+    "Carter", "Roberts", "Gomez", "Phillips", "Evans", "Turner", "Diaz", "Parker",
+    "Cruz", "Edwards", "Collins", "Reyes", "Stewart", "Morris", "Morales", "Murphy",
+    "Cook", "Rogers", "Gutierrez", "Ortiz", "Morgan", "Cooper", "Peterson", "Bailey",
+    "Reed", "Kelly", "Howard", "Ramos", "Kim", "Cox", "Ward", "Richardson", "Watson",
+    "Brooks", "Chavez", "Wood", "James", "Bennett", "Gray", "Mendoza", "Ruiz", "Hughes",
+    "Price", "Alvarez", "Castillo", "Sanders", "Patel", "Myers", "Long", "Ross", "Foster"
+]
+
+def generate_secure_password(length=12):
+    """Generate a secure password with specified requirements"""
+    # Ensure we have at least 2 of each required character type
+    password = []
+    
+    # Add 2 uppercase letters
+    password.extend(random.choices(string.ascii_uppercase, k=2))
+    
+    # Add 2 lowercase letters
+    password.extend(random.choices(string.ascii_lowercase, k=2))
+    
+    # Add 2 numbers
+    password.extend(random.choices(string.digits, k=2))
+    
+    # Add 2 special characters
+    special_chars = "!@#$%^&*"
+    password.extend(random.choices(special_chars, k=2))
+    
+    # Fill the rest with random characters
+    remaining_length = length - 8
+    all_chars = string.ascii_letters + string.digits + special_chars
+    password.extend(random.choices(all_chars, k=remaining_length))
+    
+    # Shuffle the password
+    random.shuffle(password)
+    
+    return ''.join(password)
+
+def generate_name_from_email(email: str) -> str:
+    """Generate a professional name based on email or use random selection"""
+    try:
+        # Try to extract name from email first
+        email_parts = email.split('@')[0]
+        if '.' in email_parts:
+            # If email has dots, try to use them as name parts
+            name_parts = email_parts.split('.')
+            if len(name_parts) >= 2:
+                first_name = name_parts[0].title()
+                last_name = name_parts[1].title()
+                return f"{first_name} {last_name}"
+        
+        # If email extraction doesn't work well, use random selection
+        first_name = random.choice(FIRST_NAMES)
+        last_name = random.choice(LAST_NAMES)
+        return f"{first_name} {last_name}"
+        
+    except Exception as e:
+        print(f"Error generating name from email: {e}")
+        # Fallback to random selection
+        first_name = random.choice(FIRST_NAMES)
+        last_name = random.choice(LAST_NAMES)
+        return f"{first_name} {last_name}"
+
+def generate_trainee_profile(email: str) -> dict:
+    """
+    Generate a professional name and secure password using efficient Python functions
+    """
+    try:
+        # Generate name efficiently
+        generated_name = generate_name_from_email(email)
+        
+        # Generate secure password efficiently
+        generated_password = generate_secure_password(12)
+        
+        return {
+            "name": generated_name,
+            "password": generated_password
+        }
+    except Exception as e:
+        print(f"Error generating profile: {e}")
+        # Fallback: generate basic profile
+        email_parts = email.split('@')[0]
+        name = email_parts.replace('.', ' ').title()
+        return {
+            "name": name,
+            "password": "TempPass123!"
+        }
 
 async def get_next_employee_id():
     """Get the next sequential employee ID (MAV-0001, MAV-0002, etc.)"""
@@ -54,63 +167,7 @@ async def get_next_employee_id():
     except Exception as e:
         print(f"Error generating employee ID: {e}")
         # Fallback: generate a random ID
-        import random
         return f"MAV-{random.randint(1000, 9999)}"
-
-def generate_trainee_profile(email: str) -> dict:
-    """
-    Uses a LangChain agent with a local Ollama model to generate a 
-    professional name and a unique password based on an email address.
-    """
-    try:
-        name_generation_prompt = PromptTemplate.from_template(
-            "You are a helpful HR assistant. Based on the email address '{email}', "
-            "generate a realistic and professional-sounding full name that could belong to this email. "
-            "The name should be appropriate for a corporate training environment. "
-            "Return only the full name (first and last name) and nothing else. "
-            "Example format: John Smith"
-        )
-        
-        password_generation_prompt = PromptTemplate.from_template(
-            "Generate a secure temporary password for a new employee training account. "
-            "The password must be exactly 12 characters long and include: "
-            "- At least 2 uppercase letters "
-            "- At least 2 lowercase letters "
-            "- At least 2 numbers "
-            "- At least 2 special characters from: !@#$%^&* "
-            "Make it memorable but secure. Return only the password and nothing else."
-        )
-        
-        name_chain = name_generation_prompt | llm | StrOutputParser()
-        password_chain = password_generation_prompt | llm | StrOutputParser()
-        
-        # Generate the name
-        generated_name = name_chain.invoke({"email": email})
-        # Clean up the name (remove any extra text)
-        name_clean = re.sub(r'[^\w\s]', '', generated_name.strip())
-        
-        # Generate the password
-        generated_password = password_chain.invoke({})
-        # Clean up the password (remove any extra text, keep only the password)
-        password_clean = re.sub(r'[^\w!@#$%^&*]', '', generated_password.strip())
-        
-        # Ensure password meets minimum requirements
-        if len(password_clean) < 8:
-            password_clean = "TempPass123!"  # Fallback password
-        
-        return {
-            "name": name_clean,
-            "password": password_clean
-        }
-    except Exception as e:
-        print(f"Error generating profile with AI: {e}")
-        # Fallback: generate basic profile
-        email_parts = email.split('@')[0]
-        name = email_parts.replace('.', ' ').title()
-        return {
-            "name": name,
-            "password": "TempPass123!"
-        }
 
 async def create_trainee_profile(email: str) -> dict:
     """
@@ -141,11 +198,11 @@ async def create_trainee_profile(email: str) -> dict:
         }
 
 async def test_ollama_connection():
-    """Test the connection to Ollama service"""
+    """Test the connection to Ollama service (used only for training recommendations)"""
     try:
         # A simple invocation to check if the ollama service is responsive
         response = llm.invoke("hello")
-        return True, "Ollama connection successful."
+        return True, "Ollama connection successful (for training recommendations)."
     except Exception as e:
         return False, f"Ollama connection failed: {e}"
 
