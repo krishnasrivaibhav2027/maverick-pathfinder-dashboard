@@ -10,7 +10,8 @@ from pydantic import BaseModel
 from .db import get_database, test_db_connection, ensure_indexes
 from .models import (
     Trainee, Admin, DashboardStats, WeeklyProgress, 
-    PhaseDistribution, Training, Task, LoginRequest
+    PhaseDistribution, Training, Task, LoginRequest, SetPasswordRequest,
+    ChangePasswordRequest
 )
 from .ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations
 from .email_service import test_emailjs_connection, prepare_welcome_email_data
@@ -228,6 +229,76 @@ async def login(login_request: LoginRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         print(f"❌ Login error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@app.post("/api/user/set-password")
+async def set_password(request: SetPasswordRequest):
+    """Set a new password for a user and mark it as not temporary."""
+    try:
+        # For now, we only support trainees changing passwords this way
+        user_collection = db.trainees
+        
+        # In a real app, you'd hash the password here.
+        # For now, storing plaintext to match existing logic.
+        new_password = request.new_password
+
+        result = await user_collection.update_one(
+            {"email": request.email},
+            {"$set": {
+                "password": new_password,
+                "password_is_temporary": False
+            }}
+        )
+
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if result.modified_count == 0:
+            # This could happen if the user provides the same password
+            # We'll still mark it as not temporary if needed
+            await user_collection.update_one(
+                {"email": request.email},
+                {"$set": {"password_is_temporary": False}}
+            )
+
+        return JSONResponse(content={"status": "success", "message": "Password updated successfully"})
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Set Password error: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+
+@app.post("/api/user/change-password")
+async def change_password(request: ChangePasswordRequest):
+    """Allow a logged-in user to change their password."""
+    try:
+        user_collection = db.trainees
+        user = await user_collection.find_one({"email": request.email})
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Verify old password
+        if user.get("password") != request.old_password:
+            raise HTTPException(status_code=401, detail="Incorrect old password")
+            
+        # Update to new password
+        result = await user_collection.update_one(
+            {"_id": user["_id"]},
+            {"$set": {"password": request.new_password}}
+        )
+        
+        if result.modified_count == 0:
+            # This can happen if the new password is the same as the old one
+            raise HTTPException(status_code=400, detail="New password cannot be the same as the old password.")
+
+        return JSONResponse(content={"status": "success", "message": "Password changed successfully"})
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Change Password error: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @app.get("/admins")

@@ -59,8 +59,11 @@ export default function LoginPage() {
           setName("");
         } else if (data.status === "success") {
           toast({ title: "✅ Login Successful", description: `Welcome back, ${data.user.name}!` });
-          if (role === "admin") navigate("/admin-dashboard");
-          else navigate(`/trainee-dashboard/${data.user.empId}`);
+          if (role === "admin") {
+            navigate("/admin-dashboard");
+          } else {
+            navigate(`/trainee-dashboard/${data.user.empId}`, { state: { user: data.user } });
+          }
         }
       } else {
         toast({ variant: "destructive", title: "Login Failed", description: data.detail || "Invalid credentials." });

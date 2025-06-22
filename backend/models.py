@@ -12,6 +12,7 @@ class Trainee(BaseModel):
     score: int = 0
     status: str = "active"
     specialization: str = "Pending"
+    password_is_temporary: bool = Field(default=True)
     created_at: Optional[str] = None
     last_login: Optional[str] = None
 
@@ -35,6 +36,15 @@ class LoginRequest(BaseModel):
         if 'role' in values and values['role'] == 'trainee' and not v:
             raise ValueError('Name is required for trainee registration')
         return v
+
+class SetPasswordRequest(BaseModel):
+    email: EmailStr
+    new_password: str
+
+class ChangePasswordRequest(BaseModel):
+    email: EmailStr
+    old_password: str
+    new_password: str
 
 class PasswordResetRequest(BaseModel):
     email: EmailStr
