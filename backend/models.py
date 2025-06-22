@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, validator
 from typing import Optional
 
 class Trainee(BaseModel):
@@ -28,6 +28,13 @@ class LoginRequest(BaseModel):
     password: Optional[str] = None  # Optional for new trainees
     role: str  # 'trainee' or 'admin'
     name: Optional[str] = None  # Required for new trainees
+    
+    @validator('name')
+    def validate_name_for_trainees(cls, v, values):
+        """Validate that name is provided for new trainee registrations"""
+        if 'role' in values and values['role'] == 'trainee' and not v:
+            raise ValueError('Name is required for trainee registration')
+        return v
 
 class PasswordResetRequest(BaseModel):
     email: EmailStr

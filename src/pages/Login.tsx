@@ -25,11 +25,11 @@ import { Label } from "@/components/ui/label";
 import { LogIn } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { sendEmailJs } from "@/lib/emailjs";
-import { EmailJSTest } from "@/components/EmailJSTest";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showNewUserInfo, setShowNewUserInfo] = useState(false);
   const navigate = useNavigate();
@@ -55,13 +55,30 @@ const Login = () => {
       return;
     }
 
+    // For new trainees, name is required
+    if (role === "trainee" && !password && !name) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please enter your full name for new account creation.",
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
+      const requestBody: { email: string; password: string; role: string; name?: string } = { email, password, role };
+      
+      // Add name field for new trainee registration
+      if (role === "trainee" && !password) {
+        requestBody.name = name;
+      }
+
       const response = await fetch("http://localhost:8000/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
@@ -116,6 +133,7 @@ const Login = () => {
           // Clear form fields
           setEmail("");
           setPassword("");
+          setName("");
         } else if (data.status === "success") {
           // Existing user login was successful
           toast({
@@ -201,7 +219,7 @@ const Login = () => {
             <Brain className="h-10 w-10 text-blue-600" />
           </div>
           <h1 className="text-4xl font-bold text-gray-800 mt-4">
-            Maverick Pathfinder
+            Maverick Dashboard
           </h1>
           <p className="text-sm opacity-90">AI-Powered Training Platform</p>
         </div>
@@ -235,14 +253,20 @@ const Login = () => {
                   Trainee Portal
                 </CardTitle>
                 <CardDescription>
-                  <strong>New trainees:</strong> Just enter your email - we'll
-                  create your account automatically!
-                  <br />
-                  <strong>Existing trainees:</strong> Use your email and
-                  password from the welcome email.
+                  Access your training dashboard and track your progress
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="trainee-name">Full Name</Label>
+                  <Input
+                    id="trainee-name"
+                    type="text"
+                    placeholder="Enter your full name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="trainee-email">Email Address</Label>
                   <Input
@@ -269,8 +293,7 @@ const Login = () => {
                 <Alert className="border-blue-200 bg-blue-50">
                   <AlertCircle className="h-4 w-4 text-blue-600" />
                   <AlertDescription className="text-blue-800">
-                    <strong>First time here?</strong> Our AI will generate your
-                    credentials and email them to you instantly!
+                    <strong>First time here?</strong> Enter your name and email - our AI will generate your credentials and email them to you instantly!
                   </AlertDescription>
                 </Alert>
               </CardContent>
@@ -353,15 +376,9 @@ const Login = () => {
           </TabsContent>
         </Tabs>
 
-        {/* EmailJS Test Component - For debugging purposes */}
-        <div className="mt-8">
-          <EmailJSTest />
-        </div>
-
         <div className="text-center mt-6 text-sm text-gray-600">
           <p>
-            🤖 Powered by AI • 🔒 Secure Authentication • 📧 Automated
-            Onboarding
+            2025 Hexaware Technologies. All rights reserved.
           </p>
         </div>
       </div>

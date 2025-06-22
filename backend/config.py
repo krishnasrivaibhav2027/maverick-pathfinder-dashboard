@@ -23,7 +23,7 @@ class Settings:
     
     # Email sender settings
     SENDER_EMAIL: str = os.getenv("SENDER_EMAIL", "gksvaibav99@gmail.com")
-    SENDER_NAME: str = os.getenv("SENDER_NAME", "Maverick Pathfinder Training")
+    SENDER_NAME: str = os.getenv("SENDER_NAME", "Maverick Dashboard Training")
     
     # Ollama settings
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -31,7 +31,7 @@ class Settings:
     OLLAMA_TEMPERATURE: float = float(os.getenv("OLLAMA_TEMPERATURE", "0.7"))
     
     # Application settings
-    APP_NAME: str = "Maverick Pathfinder Dashboard"
+    APP_NAME: str = "Maverick Dashboard"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     
@@ -50,8 +50,8 @@ class Settings:
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
     
     # Email templates
-    WELCOME_EMAIL_SUBJECT: str = "🎉 Welcome to Maverick Pathfinder - Your Training Journey Begins!"
-    PASSWORD_RESET_SUBJECT: str = "🔐 Maverick Pathfinder - Password Reset"
+    WELCOME_EMAIL_SUBJECT: str = "🎉 Welcome to Maverick Dashboard - Your Training Journey Begins!"
+    PASSWORD_RESET_SUBJECT: str = "🔐 Maverick Dashboard - Password Reset"
     
     @classmethod
     def get_database_url(cls) -> str:

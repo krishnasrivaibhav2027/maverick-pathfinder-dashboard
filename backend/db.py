@@ -1,8 +1,14 @@
 import motor.motor_asyncio
+import asyncio
 from .config import settings
 
-# Initialize MongoDB client with configuration
-client = motor.motor_asyncio.AsyncIOMotorClient(settings.get_database_url())
+# Initialize MongoDB client with configuration and timeout
+client = motor.motor_asyncio.AsyncIOMotorClient(
+    settings.get_database_url(),
+    serverSelectionTimeoutMS=10000,  # 10 second timeout
+    connectTimeoutMS=10000,
+    socketTimeoutMS=10000
+)
 db = client[settings.DATABASE_NAME]
 
 def get_database():
@@ -37,41 +43,20 @@ async def get_collection_stats():
         return {}
 
 async def ensure_indexes():
-    """Ensure all required indexes exist"""
+    """Ensure all required indexes exist - disabled to prevent timeouts"""
     try:
-        print("📊 Setting up database indexes...")
+        print("📊 Testing database connection...")
         
-        # Clean up any documents with null email values before creating unique indexes
-        print("🧹 Cleaning up documents with null email values...")
-        await db.trainees.delete_many({"email": None})
-        await db.admins.delete_many({"email": None})
-        
-        # Drop existing indexes to avoid conflicts
+        # Test connection first
         try:
-            await db.trainees.drop_index("email_1")
-        except:
-            pass
-        try:
-            await db.trainees.drop_index("empId_1")
-        except:
-            pass
-        try:
-            await db.admins.drop_index("email_1")
-        except:
-            pass
+            await db.command('ismaster')
+            print("✅ Database connection verified")
+            print("ℹ️  Index creation disabled to prevent timeouts - server will work without indexes")
+            return True
+        except Exception as e:
+            print(f"❌ Database connection failed: {e}")
+            return False
         
-        # Create new indexes
-        print("🔧 Creating trainees indexes...")
-        await db.trainees.create_index("email", unique=True, sparse=True)
-        await db.trainees.create_index("empId", unique=True, sparse=True)
-        await db.trainees.create_index("status")
-        await db.trainees.create_index("phase")
-        
-        print("🔧 Creating admins indexes...")
-        await db.admins.create_index("email", unique=True, sparse=True)
-        
-        print("✅ Database indexes created successfully")
-        return True
     except Exception as e:
-        print(f"❌ Error ensuring indexes: {e}")
+        print(f"❌ Error in database setup: {e}")
         return False

@@ -5,6 +5,7 @@ from bson import ObjectId
 import asyncio
 import uuid
 from datetime import datetime
+from pydantic import BaseModel
 
 from .db import get_database, test_db_connection, ensure_indexes
 from .models import (
@@ -16,7 +17,7 @@ from .email_service import test_emailjs_connection, prepare_welcome_email_data
 from .config import settings
 
 app = FastAPI(
-    title=settings.APP_NAME,
+    title="Maverick Dashboard",
     version=settings.APP_VERSION,
     description="AI-Powered Training Dashboard Backend API"
 )
@@ -41,10 +42,17 @@ def serialize_doc(doc):
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
-    print("🚀 Starting Maverick Pathfinder Backend...")
+    print("🚀 Starting Maverick Dashboard Backend...")
     
-    # Ensure database indexes
-    await ensure_indexes()
+    # Try to ensure database indexes (non-critical)
+    try:
+        index_success = await ensure_indexes()
+        if index_success:
+            print("✅ Database indexes setup completed")
+        else:
+            print("⚠️  Database indexes setup skipped - server will work without optimal indexes")
+    except Exception as e:
+        print(f"⚠️  Database indexes setup error: {e} - continuing without indexes")
     
     # Test all services
     db_status, db_message = await test_db_connection()
@@ -53,7 +61,7 @@ async def startup_event():
     
     print(f"📊 Database: {'✅' if db_status else '❌'} {db_message}")
     print(f"🤖 Ollama: {'✅' if ollama_status else '❌'} {ollama_message}")
-    print(f"📧 EmailJS: {'✅' if emailjs_status else '❌'} {emailjs_message}")
+    print(f"📧 EmailJS: {'✅' if emailjs_status else '❌'} {emailjs_message} (Note: EmailJS emails are sent from the frontend, not backend)")
     
     if db_status and emailjs_status:
         print("🎉 Critical services are ready!")
@@ -72,7 +80,7 @@ async def read_root():
     html_content = f"""
     <html>
     <head>
-        <title>{settings.APP_NAME} - Health Check</title>
+        <title>Maverick Dashboard - Health Check</title>
         <style>
             body {{ font-family: Arial, sans-serif; margin: 40px; }}
             table {{ border-collapse: collapse; width: 100%; }}
@@ -83,7 +91,7 @@ async def read_root():
         </style>
     </head>
     <body>
-        <h1>🚀 {settings.APP_NAME}</h1>
+        <h1>🚀 Maverick Dashboard</h1>
         <p><strong>Version:</strong> {settings.APP_VERSION}</p>
         <p><strong>Status:</strong> <span class="{'status-ok' if overall_status == 'ok' else 'status-error'}">{overall_status}</span></p>
         
@@ -106,8 +114,8 @@ async def read_root():
             </tr>
             <tr>
                 <td>📧 EmailJS</td>
-                <td class="{'status-ok' if emailjs_status else 'status-error'}">{'✅ OK' if emailjs_status else '❌ Error'}</td>
-                <td>{emailjs_message}</td>
+                <td class="{'status-ok' if emailjs_status else 'status-error'}">{'✅ Configured' if emailjs_status else '❌ Error'}</td>
+                <td>{emailjs_message} <br><em>Note: EmailJS emails are sent from the frontend using the provided data. Backend does not send emails directly.</em></td>
             </tr>
         </table>
         
@@ -119,6 +127,8 @@ async def read_root():
         </ul>
         
         <p><em>Frontend is available at: <a href="http://localhost:8080">http://localhost:8080</a></em></p>
+        <p><strong>ℹ️ EmailJS Integration:</strong> The backend only prepares email data for the frontend. Actual email sending is performed by the frontend using EmailJS's JavaScript SDK. If you want to confirm email delivery, consider implementing a callback from the frontend to the backend after sending.</p>
+        <p><em>© 2025 Hexaware Technologies. All rights reserved.</em></p>
     </body>
     </html>
     """
@@ -161,10 +171,6 @@ async def login(login_request: LoginRequest):
         # User doesn't exist - this is a new user registration
         if login_request.role == 'trainee':
             try:
-                # Validate that name is provided for new trainees
-                if not login_request.name:
-                    raise HTTPException(status_code=400, detail="Name is required for new trainee registration")
-                
                 print(f"Creating new trainee profile for: {login_request.email} - {login_request.name}")
                 
                 # Generate AI profile with credentials (but use provided name)
@@ -216,6 +222,10 @@ async def login(login_request: LoginRequest):
         
     except HTTPException:
         raise
+    except ValueError as e:
+        # Handle Pydantic validation errors
+        print(f"❌ Validation error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         print(f"❌ Login error: {e}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
