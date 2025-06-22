@@ -1,80 +1,45 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  CardFooter,
-} from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useNavigate } from "react-router-dom";
-import {
-  Brain,
-  Mail,
-  Lock,
-  User,
-  Shield,
-  CheckCircle,
-  AlertCircle,
-} from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
 import { Label } from "@/components/ui/label";
-import { LogIn } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useToast } from "@/components/ui/use-toast";
+import { LogIn, Shield, User } from "lucide-react";
 import { sendEmailJs } from "@/lib/emailjs";
 
-const Login = () => {
+export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [showNewUserInfo, setShowNewUserInfo] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleLogin = async (role: "trainee" | "admin") => {
+
     if (!email) {
-      toast({
-        variant: "destructive",
-        title: "Missing Information",
-        description: "Please enter your email address.",
-      });
+      toast({ variant: "destructive", title: "Email is required" });
       return;
     }
-
-    // For admin, password is required
-    if (role === "admin" && !password) {
-      toast({
-        variant: "destructive",
-        title: "Missing Information",
-        description: "Admin login requires a password.",
-      });
-      return;
-    }
-
-    // For new trainees, name is required
     if (role === "trainee" && !password && !name) {
-      toast({
-        variant: "destructive",
-        title: "Missing Information",
-        description: "Please enter your full name for new account creation.",
-      });
+      toast({ variant: "destructive", title: "Full name is required to create an account." });
+      return;
+    }
+    if (role === "admin" && !password) {
+      toast({ variant: "destructive", title: "Password is required for admin login" });
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const requestBody: { email: string; password: string; role: string; name?: string } = { email, password, role };
-      
-      // Add name field for new trainee registration
+      const requestBody: { email: string; password?: string; role: string; name?: string } = { email, role };
+      if (password) requestBody.password = password;
       if (role === "trainee" && !password) {
         requestBody.name = name;
       }
-
+      
       const response = await fetch("http://localhost:8000/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -85,298 +50,102 @@ const Login = () => {
 
       if (response.ok) {
         if (data.status === "account_created") {
-          console.log("📧 Account created, checking for email data...");
-
-          // Send welcome email via EmailJS if email data is provided
+          toast({ title: "✅ Account Created", description: "Welcome! Check your email for login credentials." });
           if (data.emailData) {
-            console.log("📧 Email data received from backend:", data.emailData);
-            try {
-              const emailResult = await sendEmailJs(data.emailData);
-              console.log("📧 Email sending result:", emailResult);
-
-              if (emailResult.success) {
-                toast({
-                  title: "✅ Account Created",
-                  description:
-                    "Account created successfully! Welcome email sent. Please check your email for login credentials.",
-                  duration: 5000,
-                });
-              } else {
-                toast({
-                  title: "✅ Account Created",
-                  description:
-                    "Account created successfully, but email failed to send. Please contact an admin for your credentials.",
-                  duration: 5000,
-                });
-                console.error("❌ Email sending failed:", emailResult.message);
-              }
-            } catch (emailError) {
-              console.error("❌ EmailJS error:", emailError);
-              toast({
-                title: "✅ Account Created",
-                description:
-                  "Account created successfully, but email failed to send. Please contact an admin for your credentials.",
-                duration: 5000,
-              });
-            }
-          } else {
-            // No email data provided - show default message
-            toast({
-              title: "✅ Account Created",
-              description:
-                data.message ||
-                "Please check your email for login credentials.",
-              duration: 5000,
-            });
+            sendEmailJs(data.emailData).catch(console.error);
           }
-
-          // Clear form fields
           setEmail("");
           setPassword("");
           setName("");
         } else if (data.status === "success") {
-          // Existing user login was successful
-          toast({
-            title: "✅ Login Successful",
-            description: `Welcome back, ${data.user.name}!`,
-          });
-
-          if (role === "admin") {
-            navigate("/admin-dashboard");
-          } else {
-            const empId = data.user.empId;
-            navigate(`/trainee-dashboard/${empId}`);
-          }
+          toast({ title: "✅ Login Successful", description: `Welcome back, ${data.user.name}!` });
+          if (role === "admin") navigate("/admin-dashboard");
+          else navigate(`/trainee-dashboard/${data.user.empId}`);
         }
       } else {
-        toast({
-          variant: "destructive",
-          title: "Login Failed",
-          description: data.detail || "Invalid credentials. Please try again.",
-        });
+        toast({ variant: "destructive", title: "Login Failed", description: data.detail || "Invalid credentials." });
       }
     } catch (error) {
-      console.error("Login error:", error);
-      toast({
-        variant: "destructive",
-        title: "Connection Error",
-        description:
-          "Could not connect to the server. Please check if the backend is running and try again.",
-      });
+      toast({ variant: "destructive", title: "Connection Error", description: "Could not connect to the server." });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handlePasswordReset = async () => {
-    if (!email) {
-      toast({
-        variant: "destructive",
-        title: "Email Required",
-        description: "Please enter your email address first.",
-      });
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        "http://localhost:8000/auth/reset-password",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        },
-      );
-
-      const data = await response.json();
-
-      if (response.ok) {
-        toast({
-          title: "Password Reset Sent",
-          description: "A new password has been sent to your email address.",
-        });
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Reset Failed",
-          description: data.detail || "Could not reset password.",
-        });
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Could not process password reset request.",
-      });
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-100 via-blue-100 to-indigo-200 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <div className="inline-block bg-white p-4 rounded-full shadow-lg">
-            <Brain className="h-10 w-10 text-blue-600" />
-          </div>
-          <h1 className="text-4xl font-bold text-gray-800 mt-4">
-            Maverick Dashboard
-          </h1>
-          <p className="text-sm opacity-90">AI-Powered Training Platform</p>
-        </div>
+    <div className="min-h-screen w-full bg-slate-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-md mx-auto">
+        <h1 className="text-4xl font-bold text-center text-slate-800 mb-8 tracking-tighter">
+          Mavericks Dashboard
+        </h1>
 
-        {showNewUserInfo && (
-          <Alert className="mb-6 border-green-200 bg-green-50">
-            <CheckCircle className="h-4 w-4 text-green-600" />
-            <AlertDescription className="text-green-800">
-              <strong>Account Created!</strong> Check your email for login
-              credentials. You'll be redirected to your dashboard shortly.
-            </AlertDescription>
-          </Alert>
-        )}
+        <div className="bg-white/60 backdrop-blur-xl rounded-2xl shadow-lg border border-white/20 p-2">
+          <Tabs defaultValue="trainee" className="w-full">
+            <TabsList className="grid w-full grid-cols-2 bg-slate-200/40 rounded-xl p-1.5 h-12 mb-6">
+              <TabsTrigger
+                value="trainee"
+                className="flex items-center justify-center gap-2 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-md data-[state=inactive]:text-slate-500 rounded-lg transition-all duration-300"
+              >
+                <User className="h-4 w-4" />
+                Trainee
+              </TabsTrigger>
+              <TabsTrigger
+                value="admin"
+                className="flex items-center justify-center gap-2 text-sm font-semibold data-[state=active]:bg-white data-[state=active]:text-slate-900 data-[state=active]:shadow-md data-[state=inactive]:text-slate-500 rounded-lg transition-all duration-300"
+              >
+                <Shield className="h-4 w-4" />
+                Admin
+              </TabsTrigger>
+            </TabsList>
 
-        <Tabs defaultValue="trainee" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 bg-white/50 backdrop-blur-sm">
-            <TabsTrigger value="trainee" className="flex items-center gap-2">
-              <User className="h-4 w-4" />
-              Trainee
-            </TabsTrigger>
-            <TabsTrigger value="admin" className="flex items-center gap-2">
-              <Shield className="h-4 w-4" />
-              Admin
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="trainee">
-            <Card className="shadow-2xl">
-              <CardHeader>
-                <CardTitle className="text-2xl font-bold text-gray-900">
-                  Trainee Portal
-                </CardTitle>
-                <CardDescription>
-                  Access your training dashboard and track your progress
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="trainee-name">Full Name</Label>
-                  <Input
-                    id="trainee-name"
-                    type="text"
-                    placeholder="Enter your full name"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
+            <div className="px-6 pb-6">
+              <TabsContent value="trainee" className="m-0">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name" className="text-sm font-medium text-slate-700">Full Name</Label>
+                    <Input id="name" type="text" placeholder="John Doe" value={name} onChange={(e) => setName(e.target.value)} className="h-12 bg-slate-100/80 border-slate-200/80 placeholder:text-slate-400 focus:bg-white focus:border-purple-400 focus:ring-2 focus:ring-purple-300/50 rounded-lg transition-all" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="trainee-email" className="text-sm font-medium text-slate-700">Email Address</Label>
+                    <Input id="trainee-email" type="email" placeholder="your.email@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 bg-slate-100/80 border-slate-200/80 placeholder:text-slate-400 focus:bg-white focus:border-purple-400 focus:ring-2 focus:ring-purple-300/50 rounded-lg transition-all" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="trainee-password" className="text-sm font-medium text-slate-700">Password <span className="text-slate-400 font-normal">(for existing users)</span></Label>
+                    <Input id="trainee-password" type="password" placeholder="Enter your password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-12 bg-slate-100/80 border-slate-200/80 placeholder:text-slate-400 focus:bg-white focus:border-purple-400 focus:ring-2 focus:ring-purple-300/50 rounded-lg transition-all" />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="trainee-email">Email Address</Label>
-                  <Input
-                    id="trainee-email"
-                    type="email"
-                    placeholder="your.email@company.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="trainee-password">
-                    Password (Optional for new users)
-                  </Label>
-                  <Input
-                    id="trainee-password"
-                    type="password"
-                    placeholder="Enter password if you're an existing user"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-              </CardContent>
-              <CardFooter className="flex flex-col gap-2">
-                <Button
-                  className="w-full"
-                  onClick={() => handleLogin("trainee")}
-                  disabled={isLoading}
-                >
-                  <LogIn className="mr-2 h-4 w-4" />
-                  {isLoading ? "Processing..." : "Sign In / Create Account"}
-                </Button>
-
-                {password && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={handlePasswordReset}
-                    className="text-blue-600 hover:text-blue-800"
-                  >
-                    Forgot Password?
+                <div className="mt-6">
+                  <Button className="w-full h-12 text-white font-bold rounded-lg shadow-lg bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 focus:ring-4 focus:ring-purple-300/50 transition-all duration-300 transform hover:scale-105" onClick={() => handleLogin("trainee")} disabled={isLoading}>
+                    {isLoading ? "Processing..." : "Sign In / Create Account"}
                   </Button>
-                )}
-              </CardFooter>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="admin">
-            <Card className="shadow-2xl">
-              <CardHeader>
-                <CardTitle className="text-2xl font-bold text-gray-900">
-                  Admin Portal
-                </CardTitle>
-                <CardDescription>
-                  Access the administrative dashboard to manage trainees and
-                  training programs
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="admin-email">Admin Email</Label>
-                  <Input
-                    id="admin-email"
-                    type="email"
-                    placeholder="admin@company.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                  />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="admin-password">Password</Label>
-                  <Input
-                    id="admin-password"
-                    type="password"
-                    placeholder="Enter your admin password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
+              </TabsContent>
+
+              <TabsContent value="admin" className="m-0">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-email" className="text-sm font-medium text-slate-700">Admin Email</Label>
+                    <Input id="admin-email" type="email" placeholder="admin@company.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-12 bg-slate-100/80 border-slate-200/80 placeholder:text-slate-400 focus:bg-white focus:border-purple-400 focus:ring-2 focus:ring-purple-300/50 rounded-lg transition-all" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="admin-password" className="text-sm font-medium text-slate-700">Password</Label>
+                    <Input id="admin-password" type="password" placeholder="Enter your admin password" value={password} onChange={(e) => setPassword(e.target.value)} className="h-12 bg-slate-100/80 border-slate-200/80 placeholder:text-slate-400 focus:bg-white focus:border-purple-400 focus:ring-2 focus:ring-purple-300/50 rounded-lg transition-all" />
+                  </div>
                 </div>
-
-                <Alert className="border-amber-200 bg-amber-50">
-                  <Shield className="h-4 w-4 text-amber-600" />
-                  <AlertDescription className="text-amber-800">
-                    Admin access requires valid credentials. Contact IT support
-                    if you need assistance.
-                  </AlertDescription>
-                </Alert>
-              </CardContent>
-              <CardFooter>
-                <Button
-                  className="w-full"
-                  onClick={() => handleLogin("admin")}
-                  disabled={isLoading}
-                >
-                  <LogIn className="mr-2 h-4 w-4" />
-                  {isLoading ? "Authenticating..." : "Access Admin Dashboard"}
-                </Button>
-              </CardFooter>
-            </Card>
-          </TabsContent>
-        </Tabs>
-
-        <div className="text-center mt-6 text-sm text-gray-600">
-          <p>
-            2025 Hexaware Technologies. All rights reserved.
-          </p>
+                <div className="mt-6">
+                  <Button className="w-full h-12 text-white font-bold rounded-lg shadow-lg bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 focus:ring-4 focus:ring-slate-400/50 transition-all duration-300 transform hover:scale-105" onClick={() => handleLogin("admin")} disabled={isLoading}>
+                    <LogIn className="mr-2 h-4 w-4" />
+                    {isLoading ? "Authenticating..." : "Access Admin Dashboard"}
+                  </Button>
+                </div>
+              </TabsContent>
+            </div>
+          </Tabs>
         </div>
+        <footer className="text-center text-sm text-slate-500 mt-8">
+          &copy; {new Date().getFullYear()} Hexaware Technologies. All rights reserved.
+        </footer>
       </div>
     </div>
   );
-};
-
-export default Login;
+}
