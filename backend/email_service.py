@@ -1,4 +1,3 @@
-
 import smtplib
 import ssl
 from email.mime.text import MIMEText
@@ -11,7 +10,7 @@ def send_welcome_email(user_email, user_name, emp_id, temp_password):
     
     try:
         # Validate SMTP configuration
-        if not settings.SMTP_PASSWORD or settings.SMTP_PASSWORD == "your_app_password":
+        if not settings.SMTP_PASSWORD or settings.SMTP_PASSWORD == "eljm tdjf ogmj mtmi":
             raise ValueError("Gmail App Password not configured. Please set SMTP_PASSWORD in your environment.")
         
         # Create message
@@ -156,7 +155,7 @@ def test_smtp_connection():
     """Test the SMTP connection with detailed debugging."""
     try:
         # Validate configuration first
-        if not settings.SMTP_PASSWORD or settings.SMTP_PASSWORD == "your_app_password":
+        if not settings.SMTP_PASSWORD or settings.SMTP_PASSWORD == "eljm tdjf ogmj mtmi":
             return False, "Gmail App Password not configured. Please set SMTP_PASSWORD environment variable."
         
         print(f"🔧 Testing SMTP connection...")
