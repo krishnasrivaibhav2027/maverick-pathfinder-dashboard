@@ -1,3 +1,4 @@
+
 """
 Configuration settings for Maverick Pathfinder Dashboard Backend
 """
@@ -24,7 +25,9 @@ class Settings:
     SMTP_SERVER: str = os.getenv("SMTP_SERVER", "smtp.gmail.com")
     SMTP_PORT: int = int(os.getenv("SMTP_PORT", "587"))
     SMTP_USERNAME: str = os.getenv("SMTP_USERNAME", "gksvaibav99@gmail.com")
-    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "kshtvjjtjmbtybbb")
+    # IMPORTANT: Use Gmail App Password, not your regular password
+    # To generate: Google Account > Security > 2-Step Verification > App passwords
+    SMTP_PASSWORD: str = os.getenv("SMTP_PASSWORD", "your_app_password")  # Replace with actual app password
     
     # Ollama settings
     OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -67,6 +70,15 @@ class Settings:
             "model": cls.OLLAMA_MODEL,
             "temperature": cls.OLLAMA_TEMPERATURE
         }
+    
+    @classmethod
+    def validate_gmail_config(cls) -> tuple[bool, str]:
+        """Validate Gmail SMTP configuration"""
+        if not cls.SMTP_PASSWORD or cls.SMTP_PASSWORD == "your_app_password":
+            return False, "Gmail App Password not configured. Please set SMTP_PASSWORD environment variable."
+        if not cls.SMTP_USERNAME or not cls.SENDER_EMAIL:
+            return False, "Gmail username or sender email not configured."
+        return True, "Gmail configuration is valid."
 
 # Create settings instance
 settings = Settings()

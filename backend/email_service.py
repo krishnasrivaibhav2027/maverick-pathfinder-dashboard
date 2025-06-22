@@ -1,14 +1,19 @@
+
 import smtplib
 import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
-from .config import settings
+from config import settings
 
 def send_welcome_email(user_email, user_name, emp_id, temp_password):
     """Send welcome email with credentials using Gmail SMTP."""
     
     try:
+        # Validate SMTP configuration
+        if not settings.SMTP_PASSWORD or settings.SMTP_PASSWORD == "your_app_password":
+            raise ValueError("Gmail App Password not configured. Please set SMTP_PASSWORD in your environment.")
+        
         # Create message
         msg = MIMEMultipart('alternative')
         msg['Subject'] = settings.WELCOME_EMAIL_SUBJECT
@@ -113,7 +118,12 @@ def send_welcome_email(user_email, user_name, emp_id, temp_password):
         # Create secure connection and send email
         context = ssl.create_default_context()
         
+        print(f"📧 Attempting to send email to {user_email}")
+        print(f"📧 Using SMTP server: {settings.SMTP_SERVER}:{settings.SMTP_PORT}")
+        print(f"📧 Authentication user: {settings.SMTP_USERNAME}")
+        
         with smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT) as server:
+            server.set_debuglevel(1)  # Enable debug output
             server.starttls(context=context)
             server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
             server.sendmail(settings.SENDER_EMAIL, user_email, msg.as_string())
@@ -121,8 +131,16 @@ def send_welcome_email(user_email, user_name, emp_id, temp_password):
         print(f"✅ Welcome email sent successfully to {user_email}")
         return True, "Email sent successfully"
         
+    except ValueError as e:
+        error_msg = str(e)
+        print(f"❌ Configuration Error: {error_msg}")
+        return False, error_msg
     except smtplib.SMTPAuthenticationError as e:
-        error_msg = f"SMTP Authentication failed: {str(e)}. Please check your Gmail app password."
+        error_msg = f"SMTP Authentication failed: {str(e)}. Make sure you're using a Gmail App Password, not your regular password."
+        print(f"❌ {error_msg}")
+        return False, error_msg
+    except smtplib.SMTPRecipientsRefused as e:
+        error_msg = f"Recipient email refused: {str(e)}"
         print(f"❌ {error_msg}")
         return False, error_msg
     except smtplib.SMTPException as e:
@@ -135,16 +153,25 @@ def send_welcome_email(user_email, user_name, emp_id, temp_password):
         return False, error_msg
 
 def test_smtp_connection():
-    """Test the SMTP connection."""
+    """Test the SMTP connection with detailed debugging."""
     try:
+        # Validate configuration first
+        if not settings.SMTP_PASSWORD or settings.SMTP_PASSWORD == "your_app_password":
+            return False, "Gmail App Password not configured. Please set SMTP_PASSWORD environment variable."
+        
+        print(f"🔧 Testing SMTP connection...")
+        print(f"📧 Server: {settings.SMTP_SERVER}:{settings.SMTP_PORT}")
+        print(f"📧 Username: {settings.SMTP_USERNAME}")
+        
         context = ssl.create_default_context()
         
         with smtplib.SMTP(settings.SMTP_SERVER, settings.SMTP_PORT) as server:
+            server.set_debuglevel(1)  # Enable debug output
             server.starttls(context=context)
             server.login(settings.SMTP_USERNAME, settings.SMTP_PASSWORD)
         
         return True, "SMTP connection successful."
     except smtplib.SMTPAuthenticationError as e:
-        return False, f"SMTP Authentication failed: {str(e)}. Please check your Gmail app password."
+        return False, f"SMTP Authentication failed: {str(e)}. Please ensure you're using a Gmail App Password."
     except Exception as e:
         return False, f"SMTP connection failed: {str(e)}"
