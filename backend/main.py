@@ -146,14 +146,18 @@ async def login(login_request: LoginRequest):
     """Handle user login with AI-generated profile creation for new trainees"""
     try:
         user_collection = db[f"{login_request.role}s"]
-        user = await user_collection.find_one({"email": login_request.email})
+        # Support login by empId or email
+        user = None
+        if hasattr(login_request, 'empId') and login_request.empId:
+            user = await user_collection.find_one({"empId": login_request.empId})
+        elif login_request.email:
+            user = await user_collection.find_one({"email": login_request.email})
 
         if user:
             # User exists - this is a login attempt
             if not login_request.password:
                 # User exists but no password provided - this is invalid
                 raise HTTPException(status_code=400, detail="User already exists. Please login with your password.")
-            
             # Existing user login with password
             if user.get("password") == login_request.password:
                 # Update last login time
@@ -168,68 +172,52 @@ async def login(login_request: LoginRequest):
                 })
             else:
                 raise HTTPException(status_code=401, detail="Invalid credentials")
-        
-        # User doesn't exist - this is a new user registration
-        if login_request.role == 'trainee':
-            try:
-                print(f"Creating new trainee profile for: {login_request.email} - {login_request.name}")
-                
-                # Generate AI profile with credentials (but use provided name)
-                profile = await create_trainee_profile(login_request.email)
-                
-                # Create trainee document using provided name
-                new_trainee = Trainee(
-                    name=login_request.name,  # Use provided name instead of AI-generated
-                    email=login_request.email,
-                    password=profile["password"],
-                    empId=profile["empId"],
-                    phase=1,
-                    progress=0,
-                    score=0,
-                    status="active",
-                    specialization="Pending",
-                    created_at=datetime.now().isoformat(),
-                    last_login=datetime.now().isoformat()
-                )
-                
-                # Store in database
-                result = await db.trainees.insert_one(new_trainee.dict())
-            
-                if result.inserted_id:
-                    print(f"✅ Trainee profile created successfully: {profile['empId']}")
-                    
-                    # Prepare email data for frontend to send via EmailJS
-                    email_data = prepare_welcome_email_data(
-                        login_request.email, 
-                        login_request.name, 
-                        profile["empId"], 
-                        profile["password"]
+        else:
+            # Only allow registration if both name and email are provided
+            if login_request.role == 'trainee' and login_request.name and login_request.email:
+                try:
+                    print(f"Creating new trainee profile for: {login_request.email} - {login_request.name}")
+                    # Generate AI profile with credentials (but use provided name)
+                    profile = await create_trainee_profile(login_request.email)
+                    # Create trainee document using provided name
+                    new_trainee = Trainee(
+                        name=login_request.name,  # Use provided name instead of AI-generated
+                        email=login_request.email,
+                        password=profile["password"],
+                        empId=profile["empId"],
+                        phase=1,
+                        progress=0,
+                        score=0,
+                        status="active",
+                        specialization="Pending",
+                        created_at=datetime.now().isoformat(),
+                        last_login=datetime.now().isoformat()
                     )
-                    
-                    return JSONResponse(content={
-                        "status": "account_created", 
-                        "message": "Account created successfully. Please check your email for login credentials.",
-                        "emailData": email_data
-                    })
-                else:
-                    raise HTTPException(status_code=500, detail="Failed to create trainee account")
-                    
-            except Exception as e:
-                print(f"❌ Error creating trainee profile: {e}")
-                raise HTTPException(status_code=500, detail=f"Failed to create trainee profile: {str(e)}")
-
-        # Admin registration not allowed
-        raise HTTPException(status_code=404, detail="Admin not found or new admin registration is not allowed.")
-        
-    except HTTPException:
-        raise
-    except ValueError as e:
-        # Handle Pydantic validation errors
-        print(f"❌ Validation error: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+                    # Store in database
+                    result = await db.trainees.insert_one(new_trainee.model_dump())
+                    if result.inserted_id:
+                        print(f"✅ Trainee profile created successfully: {profile['empId']}")
+                        # Prepare email data for frontend to send via EmailJS
+                        email_data = prepare_welcome_email_data(
+                            login_request.email,
+                            login_request.name,
+                            profile["empId"],
+                            profile["password"]
+                        )
+                        return JSONResponse(content={
+                            "status": "account_created",
+                            "user": serialize_doc(new_trainee.dict()),
+                            "message": "Account created successfully",
+                            "emailData": email_data
+                        })
+                    else:
+                        raise HTTPException(status_code=500, detail="Failed to create trainee account.")
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=f"Error creating trainee: {str(e)}")
+            else:
+                raise HTTPException(status_code=404, detail="User not found")
     except Exception as e:
-        print(f"❌ Login error: {e}")
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Login error: {str(e)}")
 
 @app.post("/api/user/set-password")
 async def set_password(request: SetPasswordRequest):
@@ -394,6 +382,116 @@ async def update_trainee_progress(emp_id: str, progress_data: dict):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error updating progress: {str(e)}")
+
+@app.post("/api/admin/bulk-create-trainees")
+async def bulk_create_trainees(trainees_data: list = Body(...)):
+    """Bulk create trainee accounts from admin upload"""
+    try:
+        print(f"🚀 Bulk creation request received for {len(trainees_data)} trainees")
+        created_trainees = []
+        failed_trainees = []
+        
+        for i, trainee_info in enumerate(trainees_data):
+            try:
+                print(f"📝 Processing trainee {i+1}/{len(trainees_data)}: {trainee_info.get('name', 'Unknown')}")
+                
+                # Validate required fields
+                if not trainee_info.get("name") or not trainee_info.get("email"):
+                    print(f"❌ Validation failed for trainee {i+1}: Missing name or email")
+                    failed_trainees.append({
+                        "name": trainee_info.get("name", "Unknown"),
+                        "email": trainee_info.get("email", "Unknown"),
+                        "error": "Name and email are required"
+                    })
+                    continue
+                
+                # Check if trainee already exists
+                existing_trainee = await db.trainees.find_one({"email": trainee_info["email"]})
+                if existing_trainee:
+                    print(f"⚠️ Trainee already exists: {trainee_info['email']}")
+                    failed_trainees.append({
+                        "name": trainee_info["name"],
+                        "email": trainee_info["email"],
+                        "error": "Trainee already exists"
+                    })
+                    continue
+                
+                # Generate AI profile
+                print(f"🤖 Generating profile for {trainee_info['email']}")
+                profile = await create_trainee_profile(trainee_info["email"])
+                
+                # Create trainee document
+                new_trainee = Trainee(
+                    name=trainee_info["name"],  # Use provided name
+                    email=trainee_info["email"],
+                    password=profile["password"],
+                    empId=profile["empId"],
+                    phase=1,
+                    progress=0,
+                    score=0,
+                    status="active",
+                    specialization="Pending",
+                    created_at=datetime.now().isoformat(),
+                    last_login=datetime.now().isoformat()
+                )
+                
+                # Store in database
+                print(f"💾 Storing trainee in database: {profile['empId']}")
+                result = await db.trainees.insert_one(new_trainee.model_dump())
+                if result.inserted_id:
+                    # Prepare email data for frontend to send via EmailJS
+                    print(f"📧 Preparing email data for {trainee_info['email']}")
+                    email_data = prepare_welcome_email_data(
+                        trainee_info["email"],
+                        trainee_info["name"],
+                        profile["empId"],
+                        profile["password"]
+                    )
+                    
+                    created_trainees.append({
+                        "name": trainee_info["name"],
+                        "email": trainee_info["email"],
+                        "empId": profile["empId"],
+                        "password": profile["password"],
+                        "emailData": email_data
+                    })
+                    
+                    print(f"✅ Trainee created successfully: {profile['empId']} - {trainee_info['name']}")
+                else:
+                    print(f"❌ Database insertion failed for {trainee_info['email']}")
+                    failed_trainees.append({
+                        "name": trainee_info["name"],
+                        "email": trainee_info["email"],
+                        "error": "Failed to create trainee account"
+                    })
+                    
+            except Exception as e:
+                print(f"❌ Error processing trainee {i+1}: {str(e)}")
+                failed_trainees.append({
+                    "name": trainee_info.get("name", "Unknown"),
+                    "email": trainee_info.get("email", "Unknown"),
+                    "error": str(e)
+                })
+        
+        print(f"🎉 Bulk creation completed: {len(created_trainees)} created, {len(failed_trainees)} failed")
+        
+        response_data = {
+            "status": "success",
+            "message": f"Bulk trainee creation completed. {len(created_trainees)} created, {len(failed_trainees)} failed.",
+            "created_trainees": created_trainees,
+            "failed_trainees": failed_trainees,
+            "summary": {
+                "total_requested": len(trainees_data),
+                "successful": len(created_trainees),
+                "failed": len(failed_trainees)
+            }
+        }
+        
+        return JSONResponse(content=response_data)
+        
+    except Exception as e:
+        print(f"❌ Bulk creation error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Bulk creation error: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

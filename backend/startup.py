@@ -33,9 +33,9 @@ async def test_services():
         print(f"   Ollama: {'✅' if ollama_status else '❌'} {ollama_message}")
         
         # Test Gmail SMTP connection
-        print("📧 Testing Gmail SMTP connection...")
-        smtp_status, smtp_message = email_service.test_smtp_connection()
-        print(f"   Gmail SMTP: {'✅' if smtp_status else '❌'} {smtp_message}")
+        print("📧 Testing EmailJS connection...")
+        smtp_status, smtp_message = email_service.test_emailjs_connection()
+        print(f"   EmailJS: {'✅' if smtp_status else '❌'} {smtp_message}")
         
         # Overall status
         if db_status and ollama_status and smtp_status:
@@ -50,7 +50,7 @@ async def test_services():
         return False
 
 async def create_sample_admin():
-    """Create a sample admin user if none exists"""
+    """Create two sample admin users if none exist"""
     try:
         from . import db
         from . import models
@@ -62,18 +62,29 @@ async def create_sample_admin():
         admin_count = await database.admins.count_documents({})
         
         if admin_count == 0:
-            print("👤 Creating sample admin user...")
+            print("👤 Creating sample admin users...")
             
-            sample_admin = models.Admin(
-                name="Admin User",
-                email="admin@maverick.com",
-                password="admin123",
-                role="admin",
-                created_at=datetime.now().isoformat()
-            )
-            
-            await database.admins.insert_one(sample_admin.dict())
-            print("✅ Sample admin created: admin@maverick.com / admin123")
+            admins = [
+                models.Admin(
+                    name="Admin One",
+                    email="admin1@maverick.com",
+                    password="admin123",
+                    empId="ADM-0001",
+                    role="admin",
+                    created_at=datetime.now().isoformat()
+                ),
+                models.Admin(
+                    name="Admin Two",
+                    email="admin2@maverick.com",
+                    password="admin123",
+                    empId="ADM-0002",
+                    role="admin",
+                    created_at=datetime.now().isoformat()
+                )
+            ]
+
+            await database.admins.insert_many([admin.model_dump() for admin in admins])
+            print("✅ Sample admins created: ADM-0001 / admin123, ADM-0002 / admin123")
         else:
             print("👤 Admin users already exist")
             

@@ -21,11 +21,13 @@ class Admin(BaseModel):
     name: str
     email: EmailStr
     password: str
+    empId: str = Field(..., description="Admin Employee ID")
     role: str = "admin"
     created_at: Optional[str] = None
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    email: Optional[EmailStr] = None
+    empId: Optional[str] = None
     password: Optional[str] = None  # Optional for new trainees
     role: str  # 'trainee' or 'admin'
     name: Optional[str] = None  # Required for new trainees

@@ -16,12 +16,14 @@ import {
   LogOut,
   UserCircle,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  UserPlus
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
+import TraineeOnboarding from "@/components/TraineeOnboarding";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -154,6 +156,7 @@ const AdminDashboard = () => {
             <TabsTrigger value="trainees">All Trainees</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
+            <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -453,6 +456,10 @@ const AdminDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="onboarding" className="space-y-6">
+            <TraineeOnboarding />
           </TabsContent>
         </Tabs>
       </div>
