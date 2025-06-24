@@ -1,6 +1,6 @@
 import motor.motor_asyncio
 import asyncio
-from .config import settings
+from config import settings
 
 # Initialize MongoDB client with configuration and timeout
 client = motor.motor_asyncio.AsyncIOMotorClient(

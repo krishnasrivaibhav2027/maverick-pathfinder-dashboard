@@ -1,7 +1,7 @@
 import random
 import string
-from .db import get_database
-from .config import settings
+from db import get_database
+from config import settings
 import re
 import asyncio
 

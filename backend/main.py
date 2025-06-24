@@ -7,15 +7,15 @@ import uuid
 from datetime import datetime
 from pydantic import BaseModel
 
-from .db import get_database, test_db_connection, ensure_indexes
-from .models import (
+from db import get_database, test_db_connection, ensure_indexes
+from models import (
     Trainee, Admin, DashboardStats, WeeklyProgress, 
     PhaseDistribution, Training, Task, LoginRequest, SetPasswordRequest,
     ChangePasswordRequest
 )
-from .ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations
-from .email_service import test_emailjs_connection, prepare_welcome_email_data
-from .config import settings
+from ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations
+from email_service import test_emailjs_connection, prepare_welcome_email_data
+from config import settings
 
 app = FastAPI(
     title="Maverick Dashboard",

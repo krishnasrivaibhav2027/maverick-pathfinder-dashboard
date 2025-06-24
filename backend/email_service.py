@@ -5,7 +5,7 @@ Note: EmailJS requires frontend integration as it doesn't allow server-side API 
 
 import json
 from typing import Dict, Any, Tuple
-from .config import settings
+from config import settings
 
 def validate_emailjs_config():
     """Validate EmailJS configuration"""

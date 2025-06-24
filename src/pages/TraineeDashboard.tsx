@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import React from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -30,6 +31,8 @@ import {
   LogOut,
   ChevronDown,
   KeyRound,
+  ChevronRight,
+  ArrowLeft,
 } from "lucide-react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
@@ -45,85 +48,51 @@ import { Fragment } from "react";
 
 const TraineeDashboard = () => {
   const navigate = useNavigate();
+  const { empId } = useParams();
   const location = useLocation();
+  const trainee = location.state?.user;
   const { toast } = useToast();
 
-  // User state will now be primarily driven by the location state passed from login
-  const [trainee, setTrainee] = useState(location.state?.user || null);
-
-  // State for the FIRST login password modal
-  const [showSetPasswordModal, setShowSetPasswordModal] = useState(false);
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [isUpdating, setIsUpdating] = useState(false);
-
-  // State for the CHANGE password modal
+  const [selectedPhase, setSelectedPhase] = useState(null);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [oldPassword, setOldPassword] = useState("");
   const [newPasswordChange, setNewPasswordChange] = useState("");
   const [confirmNewPasswordChange, setConfirmNewPasswordChange] = useState("");
   const [isChanging, setIsChanging] = useState(false);
+  const [expandedPhase, setExpandedPhase] = useState(null);
+  const [contentHeight, setContentHeight] = useState({ phase1: "0px" });
+  const contentRefs = {
+    phase1: useRef(null)
+  };
+
+  const phaseOneTrainings = [
+    { id: 1, title: "Programming Fundamentals", status: "completed", progress: 100 },
+    { id: 2, title: "Version Control (Git)", status: "in-progress", progress: 60 },
+    { id: 3, title: "Database Fundamentals", status: "pending", progress: 0 },
+  ];
+
+  const phaseTwoTrainings = [
+    { id: 5, title: "Advanced Backend Development", status: "pending", progress: 0 },
+    { id: 6, title: "Cloud Architecture", status: "pending", progress: 0 },
+    { id: 7, title: "System Design", status: "pending", progress: 0 },
+    { id: 8, title: "DevOps and CI/CD", status: "pending", progress: 0 }
+  ];
 
   useEffect(() => {
     // If user data is in location state and they need to change password, show the modal.
     if (trainee && trainee.password_is_temporary) {
-      setShowSetPasswordModal(true);
+      setShowChangePasswordModal(true);
     }
   }, [trainee]);
 
-  const handleSetPassword = async () => {
-    if (newPassword !== confirmPassword) {
-      toast({
-        variant: "destructive",
-        title: "Passwords do not match.",
-      });
-      return;
+  useEffect(() => {
+    if (contentRefs.phase1.current) {
+      setContentHeight(prev => ({
+        ...prev,
+        phase1: expandedPhase === 1 ? `${contentRefs.phase1.current.scrollHeight}px` : "0px"
+      }));
     }
-    if (newPassword.length < 8) {
-        toast({
-            variant: "destructive",
-            title: "Password must be at least 8 characters long.",
-        });
-        return;
-    }
-
-    setIsUpdating(true);
-    try {
-      const response = await fetch("http://localhost:8000/api/user/set-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email: trainee.email,
-          new_password: newPassword,
-        }),
-      });
-
-      if (response.ok) {
-        toast({
-          title: "✅ Password Updated",
-          description: "Your new password has been set successfully.",
-        });
-        setShowSetPasswordModal(false);
-        // Optionally update the local trainee state
-        setTrainee(prev => ({ ...prev, password_is_temporary: false }));
-      } else {
-        const errorData = await response.json();
-        toast({
-          variant: "destructive",
-          title: "Update Failed",
-          description: errorData.detail || "Could not update password.",
-        });
-      }
-    } catch (error) {
-      toast({
-        variant: "destructive",
-        title: "Connection Error",
-        description: "Could not connect to the server.",
-      });
-    } finally {
-      setIsUpdating(false);
-    }
-  };
+  }, [expandedPhase]);
 
   const handleChangePassword = async () => {
     if (newPasswordChange !== confirmNewPasswordChange) {
@@ -198,6 +167,136 @@ const TraineeDashboard = () => {
     { id: 4, title: "Version Control (Git)", status: "pending", progress: 0 },
   ];
 
+  const handleExpand = () => {
+    if (!expandedPhase) {
+      setExpandedPhase(1);
+    }
+  };
+
+  const handleCollapse = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setExpandedPhase(null);
+  };
+
+  const LockedPhaseCard = () => (
+    <div className="bg-white rounded-lg border border-slate-200 shadow-md opacity-60 min-h-[250px] flex flex-col">
+      <div className="p-6 flex-1 flex flex-col">
+        <div className="flex items-center gap-2 mb-2">
+          <Lock className="h-5 w-5 text-slate-400" />
+          <h3 className="text-lg font-medium text-slate-700">Phase 2: Advanced Training</h3>
+        </div>
+        <p className="text-sm text-slate-500 mb-6">
+          Complete 80% of Phase 1 to unlock (Current: {trainee.score}%)
+        </p>
+        <div className="flex-1 flex items-center justify-center flex-col">
+          <Lock className="h-12 w-12 text-slate-400 mb-4" />
+          <p className="text-slate-500">Complete Phase 1 to unlock advanced trainings</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  const UnlockedPhaseCard = () => (
+    <Card
+      className={`
+        shadow-md border-slate-200 overflow-hidden
+        transform transition-all duration-500 ease-in-out
+        ${expandedPhase === 2 
+          ? 'w-full'
+          : 'hover:scale-[1.02] cursor-pointer hover:shadow-xl hover:border-blue-300'
+        }
+      `}
+      onClick={() => !expandedPhase && setExpandedPhase(2)}
+    >
+      <CardHeader>
+        <div className="flex items-center gap-4">
+          {expandedPhase === 2 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="hover:bg-slate-100 transition-colors duration-200"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpandedPhase(null);
+              }}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+          )}
+          <div>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <CheckCircle className="h-5 w-5 text-green-500" />
+              Phase 2: Advanced Training
+            </CardTitle>
+            <CardDescription>
+              Advanced development and architecture concepts
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <span className="font-medium">Overall Progress</span>
+            <span className="text-slate-600 font-semibold">0%</span>
+          </div>
+          <Progress value={0} className="mb-4" />
+        </div>
+
+        {expandedPhase === 2 && (
+          <div className="space-y-4 mt-6">
+            {phaseTwoTrainings.map((training, index) => (
+              <div 
+                key={training.id}
+                className="p-6 rounded-lg border border-slate-200 
+                  transform transition-all duration-300 ease-in-out
+                  hover:scale-[1.01] hover:border-blue-300 hover:shadow-lg 
+                  cursor-pointer bg-white group"
+                style={{
+                  opacity: 1,
+                  transform: 'translateY(0)',
+                  transition: 'all 0.3s ease-in-out',
+                  transitionDelay: `${index * 100}ms`
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {training.status === "completed" ? (
+                      <CheckCircle className="h-5 w-5 text-green-500 transition-transform duration-300 group-hover:scale-110" />
+                    ) : (
+                      <Clock className="h-5 w-5 text-blue-500 transition-transform duration-300 group-hover:scale-110" />
+                    )}
+                    <div>
+                      <h3 className="text-lg font-medium group-hover:text-blue-600 transition-colors duration-300">
+                        {training.title}
+                      </h3>
+                      <div className="flex items-center gap-2 mt-1">
+                        <Badge 
+                          variant={
+                            training.status === "completed" 
+                              ? "default" 
+                              : training.status === "in-progress" 
+                                ? "default" 
+                                : "secondary"
+                          }
+                          className="transition-all duration-300 group-hover:bg-opacity-90"
+                        >
+                          {training.status.charAt(0).toUpperCase() + training.status.slice(1)}
+                        </Badge>
+                        <span className="text-sm text-gray-500">{training.progress}% Complete</span>
+                      </div>
+                    </div>
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-gray-400 transition-transform duration-300 group-hover:translate-x-1" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   if (!trainee) {
     return <div>Loading...</div>; // Or a more sophisticated loading spinner
   }
@@ -205,46 +304,6 @@ const TraineeDashboard = () => {
   return (
     <>
       {/* First-time password set modal */}
-      <AlertDialog open={showSetPasswordModal}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Welcome! Please set your password.</AlertDialogTitle>
-            <AlertDialogDescription>
-              For your security, you must set a permanent password before you
-              can access the dashboard.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="new-password">New Password</Label>
-              <Input
-                id="new-password"
-                type="password"
-                placeholder="Enter your new password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm New Password</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                placeholder="Confirm your new password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
-            </div>
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={handleSetPassword} disabled={isUpdating}>
-              {isUpdating ? "Updating..." : "Set Password"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Change password modal */}
       <AlertDialog open={showChangePasswordModal} onOpenChange={setShowChangePasswordModal}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -449,76 +508,211 @@ const TraineeDashboard = () => {
             <TabsContent value="training" className="space-y-6">
               <div className="grid lg:grid-cols-2 gap-6">
                 {/* Phase 1 */}
-                <Card
-                  className="shadow-md border-slate-200 cursor-pointer transition-all hover:shadow-lg hover:border-blue-300"
-                  onClick={() => handlePhaseClick(1)}
+                <div 
+                  className={`
+                    relative transition-all duration-500 ease-in-out
+                    ${expandedPhase === 1 ? 'lg:col-span-2 z-10' : ''}
+                  `}
                 >
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <CheckCircle className="h-5 w-5 text-green-500" />
-                      Phase 1: Foundation Training
-                    </CardTitle>
-                    <CardDescription>Core programming and development fundamentals</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex justify-between items-center">
-                        <span className="font-medium">Overall Progress</span>
-                        <span className="text-green-600 font-semibold">{trainee.score}%</span>
+                  <Card
+                    className={`
+                      shadow-md border-slate-200 overflow-hidden min-h-[250px]
+                      transition-[transform,box-shadow,border-color] duration-500 ease-in-out
+                      ${!expandedPhase && 'hover:scale-[1.02] cursor-pointer hover:shadow-xl hover:border-blue-300'}
+                    `}
+                    onClick={() => !expandedPhase && setExpandedPhase(1)}
+                  >
+                    <CardHeader>
+                      <div className="flex items-center gap-4">
+                        {expandedPhase === 1 && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="hover:bg-slate-100 transition-colors duration-200"
+                            onClick={handleCollapse}
+                          >
+                            <ArrowLeft className="h-5 w-5" />
+                          </Button>
+                        )}
+                        <div>
+                          <CardTitle className="flex items-center gap-2 text-lg">
+                            <CheckCircle className="h-5 w-5 text-green-500" />
+                            Phase 1: Foundation Training
+                          </CardTitle>
+                          <CardDescription>Core programming and development fundamentals</CardDescription>
+                        </div>
                       </div>
-                      <Progress value={trainee.score} className="mb-4" />
-                      <Button className="w-full">View All Trainings</Button>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium">Overall Progress</span>
+                          <span className="text-green-600 font-semibold">{trainee.score}%</span>
+                        </div>
+                        <Progress value={trainee.score} className="mb-4" />
+                      </div>
+
+                      <div
+                        ref={contentRefs.phase1}
+                        className="overflow-hidden transition-all duration-500 ease-in-out"
+                        style={{ height: contentHeight.phase1 }}
+                      >
+                        <div className="space-y-4 mt-6">
+                          {phaseOneTrainings.map((training, index) => (
+                            <div 
+                              key={training.id}
+                              className="p-6 rounded-lg border border-slate-200 transform transition-all duration-300 ease-in-out hover:scale-[1.01] hover:border-blue-300 hover:shadow-lg cursor-pointer bg-white group"
+                              style={{
+                                opacity: expandedPhase === 1 ? 1 : 0,
+                                transform: `translateY(${expandedPhase === 1 ? '0' : '20px'})`,
+                                transition: 'all 0.3s ease-in-out',
+                                transitionDelay: `${index * 100}ms`
+                              }}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  {training.status === "completed" ? (
+                                    <CheckCircle className="h-5 w-5 text-green-500 transition-transform duration-300 group-hover:scale-110" />
+                                  ) : (
+                                    <Clock className="h-5 w-5 text-blue-500 transition-transform duration-300 group-hover:scale-110" />
+                                  )}
+                                  <div>
+                                    <h3 className="text-lg font-medium group-hover:text-blue-600 transition-colors duration-300">
+                                      {training.title}
+                                    </h3>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <Badge 
+                                        variant={
+                                          training.status === "completed" 
+                                            ? "default" 
+                                            : training.status === "in-progress" 
+                                              ? "default" 
+                                              : "secondary"
+                                        }
+                                        className="transition-all duration-300 group-hover:bg-opacity-90"
+                                      >
+                                        {training.status.charAt(0).toUpperCase() + training.status.slice(1)}
+                                      </Badge>
+                                      <span className="text-sm text-gray-500">{training.progress}% Complete</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <ChevronRight className="h-5 w-5 text-gray-400 transition-transform duration-300 group-hover:translate-x-1" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
 
                 {/* Phase 2 */}
-                <Card
-                  className={`shadow-md border-slate-200 ${trainee.score < 80 ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:shadow-lg hover:border-blue-300'} transition-all`}
-                  onClick={() => {
-                    if (trainee.score >= 80) {
-                      handlePhaseClick(2);
-                    }
-                  }}
+                <div 
+                  className={`
+                    relative transition-opacity duration-500 ease-in-out
+                    ${expandedPhase === 1 ? 'invisible opacity-0' : 'opacity-100'}
+                  `}
                 >
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Lock className="h-5 w-5 text-gray-400" />
-                      Phase 2: Domain Specialization
-                    </CardTitle>
-                    <CardDescription>
-                      {trainee.score >= 80 
-                        ? "Unlocked! Based on your performance, Python track recommended" 
-                        : `Locked - Complete Phase 1 with 80%+ score (Current: ${trainee.score}%)`}
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-4">
-                      <div className="text-center py-8">
-                        {trainee.score >= 80 ? (
-                          <div>
-                            <Brain className="h-12 w-12 text-blue-500 mx-auto mb-4" />
-                            <p className="text-lg font-semibold text-blue-600">AI Recommendation: Python Track</p>
-                            <p className="text-sm text-gray-600 mt-2">Based on your strong performance in algorithms and problem-solving</p>
-                            <Button className="mt-4 w-full">
-                              View All Trainings
+                  {trainee.score >= 80 ? (
+                    <Card
+                      className={`
+                        shadow-md border-slate-200 overflow-hidden min-h-[250px]
+                        transition-[transform,box-shadow,border-color] duration-500 ease-in-out
+                        ${!expandedPhase && 'hover:scale-[1.02] cursor-pointer hover:shadow-xl hover:border-blue-300'}
+                        ${expandedPhase === 2 ? 'lg:col-span-2 z-10' : ''}
+                      `}
+                      onClick={() => !expandedPhase && setExpandedPhase(2)}
+                    >
+                      <CardHeader>
+                        <div className="flex items-center gap-4">
+                          {expandedPhase === 2 && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="hover:bg-slate-100 transition-colors duration-200"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setExpandedPhase(null);
+                              }}
+                            >
+                              <ArrowLeft className="h-5 w-5" />
                             </Button>
-                          </div>
-                        ) : (
+                          )}
                           <div>
-                            <Lock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                            <p className="text-gray-500">Complete Phase 1 to unlock specialization tracks</p>
-                            <div className="mt-4 space-y-2">
-                              <Badge variant="outline">Python Development</Badge>
-                              <Badge variant="outline">Java Enterprise</Badge>
-                              <Badge variant="outline">.NET Framework</Badge>
-                            </div>
+                            <CardTitle className="flex items-center gap-2 text-lg">
+                              <CheckCircle className="h-5 w-5 text-green-500" />
+                              Phase 2: Advanced Training
+                            </CardTitle>
+                            <CardDescription>
+                              Advanced development and architecture concepts
+                            </CardDescription>
                           </div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium">Overall Progress</span>
+                            <span className="text-slate-600 font-semibold">0%</span>
+                          </div>
+                          <Progress value={0} className="mb-4" />
+                        </div>
+
+                        <div className="space-y-4 mt-6">
+                          {phaseTwoTrainings.map((training, index) => (
+                            <div 
+                              key={training.id}
+                              className="p-6 rounded-lg border border-slate-200 
+                                transform transition-all duration-300 ease-in-out
+                                hover:scale-[1.01] hover:border-blue-300 hover:shadow-lg 
+                                cursor-pointer bg-white group"
+                              style={{
+                                opacity: 1,
+                                transform: 'translateY(0)',
+                                transition: 'all 0.3s ease-in-out',
+                                transitionDelay: `${index * 100}ms`
+                              }}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  {training.status === "completed" ? (
+                                    <CheckCircle className="h-5 w-5 text-green-500 transition-transform duration-300 group-hover:scale-110" />
+                                  ) : (
+                                    <Clock className="h-5 w-5 text-blue-500 transition-transform duration-300 group-hover:scale-110" />
+                                  )}
+                                  <div>
+                                    <h3 className="text-lg font-medium group-hover:text-blue-600 transition-colors duration-300">
+                                      {training.title}
+                                    </h3>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <Badge 
+                                        variant={
+                                          training.status === "completed" 
+                                            ? "default" 
+                                            : training.status === "in-progress" 
+                                              ? "default" 
+                                              : "secondary"
+                                        }
+                                        className="transition-all duration-300 group-hover:bg-opacity-90"
+                                      >
+                                        {training.status.charAt(0).toUpperCase() + training.status.slice(1)}
+                                      </Badge>
+                                      <span className="text-sm text-gray-500">{training.progress}% Complete</span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <ChevronRight className="h-5 w-5 text-gray-400 transition-transform duration-300 group-hover:translate-x-1" />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    <LockedPhaseCard />
+                  )}
+                </div>
               </div>
             </TabsContent>
 
