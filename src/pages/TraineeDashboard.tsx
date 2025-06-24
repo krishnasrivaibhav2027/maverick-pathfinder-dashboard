@@ -64,11 +64,6 @@ const TraineeDashboard = () => {
   const [confirmNewPasswordChange, setConfirmNewPasswordChange] = useState("");
   const [isChanging, setIsChanging] = useState(false);
 
-  // Add state for expanded phase
-  const [expandedPhase, setExpandedPhase] = useState(null);
-  const [phaseTrainings, setPhaseTrainings] = useState([]);
-  const [loadingTrainings, setLoadingTrainings] = useState(false);
-
   useEffect(() => {
     // If user data is in location state and they need to change password, show the modal.
     if (trainee && trainee.password_is_temporary) {
@@ -169,17 +164,10 @@ const TraineeDashboard = () => {
     }
   };
 
-  const fetchPhaseTrainings = async (phaseId) => {
-    setLoadingTrainings(true);
-    try {
-      const res = await fetch(`http://localhost:8000/trainees/${trainee.empId}/phase/${phaseId}/trainings`);
-      const data = await res.json();
-      setPhaseTrainings(data.trainings || []);
-    } catch (e) {
-      setPhaseTrainings([]);
-    } finally {
-      setLoadingTrainings(false);
-    }
+  const handlePhaseClick = (phaseId: number) => {
+    navigate(`/trainee-dashboard/${trainee.empId}/phase/${phaseId}`, {
+      state: { user: trainee }
+    });
   };
 
   // Mock data for charts
@@ -459,157 +447,79 @@ const TraineeDashboard = () => {
             </TabsContent>
 
             <TabsContent value="training" className="space-y-6">
-              {expandedPhase ? (
-                <div className="max-w-xl mx-auto">
-                  <Card className="shadow-lg border-slate-200">
-                    <CardHeader className="flex flex-row items-center justify-between pb-2">
-                      <div className="flex items-center gap-2">
-                        {expandedPhase === 1 ? (
-                          <CheckCircle className="h-5 w-5 text-green-500" />
-                        ) : (
-                          <Lock className="h-5 w-5 text-gray-400" />
-                        )}
-                        <CardTitle className="text-lg">
-                          {expandedPhase === 1 ? "Phase 1: Foundation Training" : "Phase 2: Domain Specialization"}
-                        </CardTitle>
+              <div className="grid lg:grid-cols-2 gap-6">
+                {/* Phase 1 */}
+                <Card
+                  className="shadow-md border-slate-200 cursor-pointer transition-all hover:shadow-lg hover:border-blue-300"
+                  onClick={() => handlePhaseClick(1)}
+                >
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      Phase 1: Foundation Training
+                    </CardTitle>
+                    <CardDescription>Core programming and development fundamentals</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium">Overall Progress</span>
+                        <span className="text-green-600 font-semibold">{trainee.score}%</span>
                       </div>
-                      <Button variant="ghost" size="sm" onClick={() => setExpandedPhase(null)}>
-                        <ChevronDown className="h-4 w-4 rotate-90" /> Back
-                      </Button>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="mb-4">
-                        <CardDescription>
-                          {expandedPhase === 1
-                            ? "Core programming and development fundamentals"
-                            : trainee.score >= 80
-                              ? "Unlocked! Based on your performance, Python track recommended"
-                              : `Locked - Complete Phase 1 with 80%+ score (Current: ${trainee.score}%)`}
-                        </CardDescription>
-                        <div className="flex justify-between items-center mt-2">
-                          <span className="text-sm font-medium text-slate-600">Overall Progress</span>
-                          <span className="text-green-600 font-semibold">{trainee.score}%</span>
-                        </div>
-                        <Progress value={trainee.score} className="mb-2 mt-1" />
-                      </div>
-                      {/* Trainings List */}
-                      {loadingTrainings ? (
-                        <div className="text-center py-8">Loading trainings...</div>
-                      ) : (
-                        <div className="space-y-4">
-                          {phaseTrainings.map((training) => (
-                            <Card key={training.id} className="border-slate-100 shadow-sm">
-                              <CardContent className="py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                                <div>
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <span className="font-semibold text-slate-800">{training.title}</span>
-                                    <Badge variant={training.status === "completed" ? "default" : training.status === "in-progress" ? "default" : "secondary"}>
-                                      {training.status.charAt(0).toUpperCase() + training.status.slice(1)}
-                                    </Badge>
-                                    {training.duration && (
-                                      <span className="ml-2 text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{training.duration}</span>
-                                    )}
-                                  </div>
-                                  <div className="text-xs text-gray-600 mb-2">{training.description}</div>
-                                  <Progress value={training.progress} className="w-40 md:w-56" />
-                                </div>
-                                <div>
-                                  {training.status === "completed" ? (
-                                    <Button variant="outline" size="sm">Review</Button>
-                                  ) : training.status === "in-progress" ? (
-                                    <Button size="sm">Continue</Button>
-                                  ) : training.status === "locked" ? (
-                                    <Button disabled size="sm">Locked</Button>
-                                  ) : (
-                                    <Button size="sm">Start</Button>
-                                  )}
-                                </div>
-                              </CardContent>
-                            </Card>
-                          ))}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                </div>
-              ) : (
-                <div className="grid lg:grid-cols-2 gap-6">
-                  {/* Phase 1 */}
-                  <Card
-                    className={`shadow-md border-slate-200 cursor-pointer transition-all`}
-                    onClick={async () => {
-                      setExpandedPhase(1);
-                      await fetchPhaseTrainings(1);
-                    }}
-                  >
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <CheckCircle className="h-5 w-5 text-green-500" />
-                        Phase 1: Foundation Training
-                      </CardTitle>
-                      <CardDescription>Core programming and development fundamentals</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">Overall Progress</span>
-                          <span className="text-green-600 font-semibold">{trainee.score}%</span>
-                        </div>
-                        <Progress value={trainee.score} className="mb-4" />
-                      </div>
-                    </CardContent>
-                  </Card>
+                      <Progress value={trainee.score} className="mb-4" />
+                      <Button className="w-full">View All Trainings</Button>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                  {/* Phase 2 */}
-                  <Card
-                    className={`shadow-md border-slate-200 ${trainee.score < 80 ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
-                    onClick={async () => {
-                      if (trainee.score >= 80) {
-                        setExpandedPhase(2);
-                        await fetchPhaseTrainings(2);
-                      }
-                    }}
-                  >
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <Lock className="h-5 w-5 text-gray-400" />
-                        Phase 2: Domain Specialization
-                      </CardTitle>
-                      <CardDescription>
-                        {trainee.score >= 80 
-                          ? "Unlocked! Based on your performance, Python track recommended" 
-                          : `Locked - Complete Phase 1 with 80%+ score (Current: ${trainee.score}%)`}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="text-center py-8">
-                          {trainee.score >= 80 ? (
-                            <div>
-                              <Brain className="h-12 w-12 text-blue-500 mx-auto mb-4" />
-                              <p className="text-lg font-semibold text-blue-600">AI Recommendation: Python Track</p>
-                              <p className="text-sm text-gray-600 mt-2">Based on your strong performance in algorithms and problem-solving</p>
-                              <Button className="mt-4" disabled={trainee.score < 85}>
-                                Start Python Specialization
-                              </Button>
+                {/* Phase 2 */}
+                <Card
+                  className={`shadow-md border-slate-200 ${trainee.score < 80 ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:shadow-lg hover:border-blue-300'} transition-all`}
+                  onClick={() => {
+                    if (trainee.score >= 80) {
+                      handlePhaseClick(2);
+                    }
+                  }}
+                >
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Lock className="h-5 w-5 text-gray-400" />
+                      Phase 2: Domain Specialization
+                    </CardTitle>
+                    <CardDescription>
+                      {trainee.score >= 80 
+                        ? "Unlocked! Based on your performance, Python track recommended" 
+                        : `Locked - Complete Phase 1 with 80%+ score (Current: ${trainee.score}%)`}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      <div className="text-center py-8">
+                        {trainee.score >= 80 ? (
+                          <div>
+                            <Brain className="h-12 w-12 text-blue-500 mx-auto mb-4" />
+                            <p className="text-lg font-semibold text-blue-600">AI Recommendation: Python Track</p>
+                            <p className="text-sm text-gray-600 mt-2">Based on your strong performance in algorithms and problem-solving</p>
+                            <Button className="mt-4 w-full">
+                              View All Trainings
+                            </Button>
+                          </div>
+                        ) : (
+                          <div>
+                            <Lock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                            <p className="text-gray-500">Complete Phase 1 to unlock specialization tracks</p>
+                            <div className="mt-4 space-y-2">
+                              <Badge variant="outline">Python Development</Badge>
+                              <Badge variant="outline">Java Enterprise</Badge>
+                              <Badge variant="outline">.NET Framework</Badge>
                             </div>
-                          ) : (
-                            <div>
-                              <Lock className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                              <p className="text-gray-500">Complete Phase 1 to unlock specialization tracks</p>
-                              <div className="mt-4 space-y-2">
-                                <Badge variant="outline">Python Development</Badge>
-                                <Badge variant="outline">Java Enterprise</Badge>
-                                <Badge variant="outline">.NET Framework</Badge>
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </TabsContent>
 
             <TabsContent value="assignments" className="space-y-6">
