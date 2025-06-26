@@ -11,7 +11,7 @@ from db import get_database, test_db_connection, ensure_indexes
 from models import (
     Trainee, Admin, DashboardStats, WeeklyProgress, 
     PhaseDistribution, Training, Task, LoginRequest, SetPasswordRequest,
-    ChangePasswordRequest
+    ChangePasswordRequest, Batch
 )
 from ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations
 from email_service import test_emailjs_connection, prepare_welcome_email_data
@@ -492,6 +492,47 @@ async def bulk_create_trainees(trainees_data: list = Body(...)):
     except Exception as e:
         print(f"❌ Bulk creation error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Bulk creation error: {str(e)}")
+
+@app.post("/batches")
+async def create_batch(batch: Batch):
+    batch_dict = batch.dict()
+    batch_dict['created_at'] = datetime.now().isoformat()
+    result = await db.batches.insert_one(batch_dict)
+    batch_dict['id'] = str(result.inserted_id)
+    return JSONResponse(content=batch_dict)
+
+@app.get("/batches")
+async def list_batches():
+    batches = []
+    cursor = db.batches.find()
+    async for document in cursor:
+        document = serialize_doc(document)
+        document['id'] = str(document['_id'])
+        batches.append(document)
+    return JSONResponse(content=batches)
+
+@app.get("/batches/{batch_id}")
+async def get_batch(batch_id: str):
+    batch = await db.batches.find_one({"_id": ObjectId(batch_id)})
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    batch['id'] = str(batch['_id'])
+    return JSONResponse(content=batch)
+
+@app.put("/batches/{batch_id}")
+async def update_batch(batch_id: str, batch: Batch):
+    batch_dict = {k: v for k, v in batch.dict().items() if v is not None}
+    await db.batches.update_one({"_id": ObjectId(batch_id)}, {"$set": batch_dict})
+    updated = await db.batches.find_one({"_id": ObjectId(batch_id)})
+    updated['id'] = str(updated['_id'])
+    return JSONResponse(content=updated)
+
+@app.delete("/batches/{batch_id}")
+async def delete_batch(batch_id: str):
+    result = await db.batches.delete_one({"_id": ObjectId(batch_id)})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    return JSONResponse(content={"status": "deleted"})
 
 if __name__ == "__main__":
     import uvicorn
