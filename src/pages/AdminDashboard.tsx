@@ -23,6 +23,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
+import BatchManagement from "@/components/BatchManagement";
 import TraineeOnboarding from "@/components/TraineeOnboarding";
 
 const AdminDashboard = () => {
@@ -460,6 +461,7 @@ const AdminDashboard = () => {
 
           <TabsContent value="onboarding" className="space-y-6">
             <TraineeOnboarding />
+            <BatchManagement />
           </TabsContent>
         </Tabs>
       </div>
