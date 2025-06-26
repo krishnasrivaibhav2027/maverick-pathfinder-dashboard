@@ -8,6 +8,9 @@ import TraineeDashboard from "./pages/TraineeDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
 import PhaseTrainings from "./pages/PhaseTrainings";
+import TotalTraineesPage from "./pages/TotalTraineesPage";
+import ManageBatchesPage from "./pages/ManageBatchesPage";
+import BatchDetailsPage from "./pages/BatchDetailsPage";
 
 const queryClient = new QueryClient();
 
@@ -23,6 +26,9 @@ const App = () => (
           <Route path="/trainee-dashboard/:empId" element={<TraineeDashboard />} />
           <Route path="/trainee-dashboard/:empId/phase/:phaseId" element={<PhaseTrainings />} />
           <Route path="/admin-dashboard" element={<AdminDashboard />} />
+          <Route path="/admin-dashboard/total-trainees" element={<TotalTraineesPage />} />
+          <Route path="/manage-batches" element={<ManageBatchesPage />} />
+          <Route path="/batches/:batchName" element={<BatchDetailsPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

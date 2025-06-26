@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, EmailStr, validator
-from typing import Optional
+from typing import Optional, List, Dict
 
 class Trainee(BaseModel):
     id: Optional[int] = Field(None, description="Unique identifier")
@@ -12,6 +12,7 @@ class Trainee(BaseModel):
     score: int = 0
     status: str = "active"
     specialization: str = "Pending"
+    batch: Optional[str] = Field(default=None, description="Batch ID")
     password_is_temporary: bool = Field(default=True)
     created_at: Optional[str] = None
     last_login: Optional[str] = None
@@ -94,3 +95,13 @@ class UserProfile(BaseModel):
     score: int
     specialization: str
     status: str
+
+class Batch(BaseModel):
+    id: Optional[str] = Field(None, description="Unique identifier")
+    name: str
+    instructor: str
+    description: Optional[str] = None
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    modules: List[Dict] = Field(default_factory=list, description="List of modules with title and active status")
+    created_at: Optional[str] = None

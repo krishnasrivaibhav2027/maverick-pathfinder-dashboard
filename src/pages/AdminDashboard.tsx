@@ -29,6 +29,8 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
   const [trainees, setTrainees] = useState([]);
+  const [tab, setTab] = useState("overview");
+  const [activeFilter, setActiveFilter] = useState(false);
 
   useEffect(() => {
     const fetchTrainees = async () => {
@@ -66,10 +68,14 @@ const AdminDashboard = () => {
     { week: 'Week 4', newJoiners: 22, completions: 18, avgScore: 85 },
   ];
 
-  const filteredTrainees = trainees.filter(trainee => 
-    trainee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (trainee.empId && trainee.empId.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredTrainees = trainees.filter(trainee => {
+    const matchesSearch = trainee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (trainee.empId && trainee.empId.toLowerCase().includes(searchTerm.toLowerCase()));
+    if (activeFilter) {
+      return matchesSearch && trainee.status === 'active';
+    }
+    return matchesSearch;
+  });
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
@@ -101,29 +107,40 @@ const AdminDashboard = () => {
       <div className="container mx-auto px-6 py-6">
         {/* Quick Stats */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">
-          <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-100">Total Trainees</p>
-                  <p className="text-3xl font-bold">{overallStats.totalTrainees}</p>
+          {/* Total Trainees Card */}
+          <div
+            className="cursor-pointer"
+            onClick={() => navigate('/admin-dashboard/total-trainees')}
+          >
+            <Card className="bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-100">Total Trainees</p>
+                    <p className="text-3xl font-bold">{overallStats.totalTrainees}</p>
+                  </div>
+                  <Users className="h-8 w-8 text-blue-200" />
                 </div>
-                <Users className="h-8 w-8 text-blue-200" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-green-100">Active Trainees</p>
-                  <p className="text-3xl font-bold">{overallStats.activeTrainees}</p>
+              </CardContent>
+            </Card>
+          </div>
+          {/* Manage Batches Card */}
+          <div
+            className="cursor-pointer"
+            onClick={() => navigate('/manage-batches')}
+          >
+            <Card className="bg-gradient-to-r from-green-500 to-green-600 text-white">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-100">Manage Batches</p>
+                    <p className="text-3xl font-bold">{overallStats.activeTrainees}</p>
+                  </div>
+                  <TrendingUp className="h-8 w-8 text-green-200" />
                 </div>
-                <TrendingUp className="h-8 w-8 text-green-200" />
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
           
           <Card className="bg-gradient-to-r from-purple-500 to-purple-600 text-white">
             <CardContent className="p-6">
@@ -150,10 +167,9 @@ const AdminDashboard = () => {
           </Card>
         </div>
 
-        <Tabs defaultValue="overview" className="space-y-6">
+        <Tabs value={tab} onValueChange={setTab} defaultValue="overview" className="space-y-6">
           <TabsList className="bg-white shadow-sm">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="trainees">All Trainees</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
             <TabsTrigger value="onboarding">Onboarding</TabsTrigger>
@@ -253,71 +269,6 @@ const AdminDashboard = () => {
                 </div>
               </CardContent>
             </Card>
-          </TabsContent>
-
-          <TabsContent value="trainees" className="space-y-6">
-            <div>
-              <div className="relative mb-6">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-                <Input
-                  type="search"
-                  placeholder="Search trainees by name or employee ID..."
-                  className="pl-10 w-full"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-              </div>
-              
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {filteredTrainees.map((trainee) => (
-                  <Link to={`/trainee-dashboard/${trainee.empId}`} key={trainee.empId} className="block text-inherit no-underline">
-                    <div className="border rounded-lg p-4 hover:bg-gray-50 transition-colors h-full flex flex-col">
-                      <CardContent className="p-0 flex-grow">
-                        <div className="space-y-4">
-                          <div className="flex items-center gap-4 border-b pb-4">
-                            <Avatar className="h-12 w-12">
-                              <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${trainee.name}`} />
-                              <AvatarFallback>{trainee.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <h3 className="font-semibold">{trainee.name}</h3>
-                              <p className="text-sm text-gray-600">{trainee.empId}</p>
-                            </div>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                              <p className="text-gray-500">Phase</p>
-                              <Badge variant={trainee.phase === 2 ? "default" : "secondary"}>
-                                Phase {trainee.phase}
-                              </Badge>
-                            </div>
-                            <div>
-                              <p className="text-gray-500">Status</p>
-                              <Badge variant={trainee.status === 'active' ? 'default' : 'destructive'}>{trainee.status}</Badge>
-                            </div>
-                            <div>
-                              <p className="text-gray-500">Progress</p>
-                              <div className="flex items-center gap-2">
-                                <Progress value={trainee.progress} className="w-full" />
-                                <p className="font-semibold">{trainee.progress}%</p>
-                              </div>
-                            </div>
-                            <div>
-                              <p className="text-gray-500">Score</p>
-                              <p className="font-semibold text-green-600">{trainee.score}%</p>
-                            </div>
-                            <div className="col-span-2">
-                              <p className="text-gray-500">Specialization</p>
-                              <Badge variant="outline">{trainee.specialization}</Badge>
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            </div>
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
