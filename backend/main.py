@@ -508,6 +508,7 @@ async def list_batches():
     batches = []
     cursor = db.batches.find()
     async for document in cursor:
+        document = serialize_doc(document)
         document['id'] = str(document['_id'])
         batches.append(document)
     return JSONResponse(content=batches)
