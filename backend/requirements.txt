@@ -10,5 +10,7 @@ python-multipart==0.0.6
 bcrypt==4.1.2
 python-dotenv==1.0.0
 pymongo>=4.5
-PyPDF2
-adobe-pdfservices-sdk
+pdfplumber
+pytesseract
+pillow
+spacy

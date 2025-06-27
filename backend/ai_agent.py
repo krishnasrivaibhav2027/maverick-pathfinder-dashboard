@@ -4,6 +4,12 @@ from db import get_database
 from config import settings
 import re
 import asyncio
+import json
+import pdfplumber
+import pytesseract
+from PIL import Image
+import io
+import spacy
 
 # Keep Ollama only for training recommendations where AI adds value
 from langchain_ollama import ChatOllama
@@ -49,6 +55,13 @@ LAST_NAMES = [
     "Brooks", "Chavez", "Wood", "James", "Bennett", "Gray", "Mendoza", "Ruiz", "Hughes",
     "Price", "Alvarez", "Castillo", "Sanders", "Patel", "Myers", "Long", "Ross", "Foster"
 ]
+
+# Load spaCy English model (make sure to install: python -m spacy download en_core_web_sm)
+try:
+    nlp = spacy.load("en_core_web_sm")
+except Exception as e:
+    nlp = None
+    print("spaCy model not loaded. Please run: python -m spacy download en_core_web_sm")
 
 def generate_secure_password(length=12):
     """Generate a secure password with specified requirements"""
@@ -240,3 +253,81 @@ async def generate_training_recommendations(trainee_data: dict) -> dict:
             "recommendations": "Continue with current training phase",
             "generated_at": "2024-01-01"
         }
+
+async def extract_resume_fields_with_llama(resume_text: str) -> dict:
+    """
+    Use Llama3 (Ollama) to extract name, email, and skills from resume text.
+    """
+    prompt = (
+        "Extract the candidate's full name, email address, and a list of skills from the following resume text. "
+        "Respond in JSON format with keys: name, email, skills.\n\n"
+        f"Resume:\n{resume_text}"
+    )
+    try:
+        response = await llm.ainvoke(prompt)
+        data = json.loads(response)
+        if not all(k in data for k in ("name", "email", "skills")):
+            raise ValueError("Missing keys in Llama response")
+        return data
+    except Exception as e:
+        print(f"Llama extraction failed: {e}")
+        return None
+
+def extract_text_from_pdfplumber(pdf_bytes):
+    """
+    Try to extract text from PDF using pdfplumber. Fallback to OCR if needed.
+    """
+    try:
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            text = "\n".join(page.extract_text() or "" for page in pdf.pages)
+        if text.strip():
+            return text
+    except Exception as e:
+        print(f"pdfplumber failed: {e}")
+    # Fallback to OCR for image-based PDFs
+    try:
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            text = ""
+            for page in pdf.pages:
+                im = page.to_image(resolution=300)
+                pil_img = im.original
+                text += pytesseract.image_to_string(pil_img)
+            return text
+    except Exception as e:
+        print(f"OCR fallback failed: {e}")
+        return ""
+
+def fast_extract_resume_fields(text: str, skill_priority=None) -> dict:
+    """
+    Fast extraction of name, email, and skills using regex and spaCy NER.
+    Returns None if extraction is not confident.
+    """
+    if not text or not text.strip():
+        return None
+    # Email extraction
+    import re
+    email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)
+    email = email_match.group(0) if email_match else None
+    # Name extraction using spaCy NER
+    name = None
+    if nlp:
+        doc = nlp(text[:1000])  # Only first 1000 chars for speed
+        for ent in doc.ents:
+            if ent.label_ == "PERSON" and 2 <= len(ent.text.split()) <= 4:
+                name = ent.text.strip()
+                break
+    # Skill extraction
+    found_skill = None
+    if skill_priority:
+        text_lower = text.lower()
+        for skill in skill_priority:
+            if skill in text_lower:
+                found_skill = skill
+                break
+    # If all fields found, return
+    if name and email and found_skill:
+        return {"name": name, "email": email, "skills": [found_skill]}
+    # If at least email and skill found, return (name can fallback to LLM)
+    if email and found_skill:
+        return {"name": name, "email": email, "skills": [found_skill]}
+    return None
