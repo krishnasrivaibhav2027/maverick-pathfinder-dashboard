@@ -29,9 +29,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
-interface TraineeData {
-  name: string;
-  email: string;
+interface BatchSummary {
+  batch_id: string;
+  skill: string;
+  batch_number: number;
+  trainees: { name: string; email: string; pdf: string; skill: string }[];
+  is_next_batch: boolean;
 }
 
 interface CreatedTrainee {
@@ -48,171 +51,100 @@ interface FailedTrainee {
   error: string;
 }
 
+interface BatchResult {
+  status: string;
+  created_trainees: CreatedTrainee[];
+  failed_trainees: FailedTrainee[];
+  summary: {
+    total: number;
+    created: number;
+    failed: number;
+  };
+}
+
 const TraineeOnboarding = () => {
   const [file, setFile] = useState<File | null>(null);
-  const [traineesData, setTraineesData] = useState<TraineeData[]>([]);
+  const [batches, setBatches] = useState<BatchSummary[]>([]);
   const [isUploading, setIsUploading] = useState(false);
-  const [isCreating, setIsCreating] = useState(false);
-  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
-  const [createdTrainees, setCreatedTrainees] = useState<CreatedTrainee[]>([]);
-  const [failedTrainees, setFailedTrainees] = useState<FailedTrainee[]>([]);
-  const [showResults, setShowResults] = useState(false);
+  const [isCreating, setIsCreating] = useState<string | null>(null);
+  const [results, setResults] = useState<Record<string, BatchResult>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (!selectedFile) return;
-
-    if (selectedFile.type !== "application/json") {
+    if (selectedFile.type !== "application/zip" && !selectedFile.name.endsWith(".zip")) {
       toast({
         variant: "destructive",
         title: "Invalid file type",
-        description: "Please upload a JSON file."
+        description: "Please upload a zip file of PDF resumes."
       });
       return;
     }
-
     setFile(selectedFile);
     setIsUploading(true);
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = JSON.parse(e.target?.result as string);
-        
-        // Validate data structure
-        if (!Array.isArray(data)) {
-          throw new Error("JSON must contain an array of trainee objects");
-        }
-
-        // Validate each trainee object
-        const validTrainees: TraineeData[] = [];
-        const invalidTrainees: string[] = [];
-
-        data.forEach((trainee, index) => {
-          if (trainee.name && trainee.email) {
-            validTrainees.push({
-              name: trainee.name.trim(),
-              email: trainee.email.trim().toLowerCase()
-            });
-          } else {
-            invalidTrainees.push(`Row ${index + 1}: Missing name or email`);
-          }
-        });
-
-        if (invalidTrainees.length > 0) {
-          toast({
-            variant: "destructive",
-            title: "Invalid data found",
-            description: `${invalidTrainees.length} entries have invalid data. Please check your JSON file.`
-          });
-        }
-
-        setTraineesData(validTrainees);
-        toast({
-          title: "File uploaded successfully",
-          description: `${validTrainees.length} valid trainee entries found.`
-        });
-      } catch (error) {
-        toast({
-          variant: "destructive",
-          title: "Invalid JSON file",
-          description: "Please check your JSON file format."
-        });
-      } finally {
-        setIsUploading(false);
-      }
-    };
-
-    reader.readAsText(selectedFile);
-  };
-
-  const handleBulkCreate = async () => {
-    if (traineesData.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "No data to process",
-        description: "Please upload a file with trainee data first."
-      });
-      return;
-    }
-
-    setIsCreating(true);
+    const formData = new FormData();
+    formData.append("file", selectedFile);
     try {
-      console.log("🚀 Starting bulk trainee creation...");
-      
-      // Create AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
-      
-      const response = await fetch("http://localhost:8000/api/admin/bulk-create-trainees", {
+      const response = await fetch("http://localhost:8000/onboarding/upload-resumes", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(traineesData),
-        signal: controller.signal
+        body: formData
       });
-      
-      clearTimeout(timeoutId);
-      console.log("📡 Backend response received");
-      const result = await response.json();
-
-      if (response.ok) {
-        console.log("✅ Backend creation successful:", result);
-        setCreatedTrainees(result.created_trainees || []);
-        setFailedTrainees(result.failed_trainees || []);
-        setShowResults(true);
-        
-        toast({
-          title: "Bulk creation completed",
-          description: result.message,
-        });
-
-        // Send emails for created trainees
-        if (result.created_trainees && result.created_trainees.length > 0) {
-          console.log("📧 Starting email sending process...");
-          await sendWelcomeEmails(result.created_trainees);
+      const data = await response.json();
+      if (response.ok && data.batch_ids) {
+        const batchDetails: BatchSummary[] = [];
+        for (const batch_id of data.batch_ids) {
+          const res = await fetch(`http://localhost:8000/batch/${batch_id}`);
+          if (res.ok) {
+            const batch = await res.json();
+            batchDetails.push({
+              batch_id,
+              skill: batch.skill,
+              batch_number: batch.batch_number,
+              trainees: batch.trainees,
+              is_next_batch: batch.is_next_batch
+            });
+          }
         }
+        setBatches(batchDetails);
+        toast({ title: "Batches created", description: `Found ${batchDetails.length} batches.` });
       } else {
-        console.error("❌ Backend creation failed:", result);
-        toast({
-          variant: "destructive",
-          title: "Creation failed",
-          description: result.detail || "Failed to create trainee accounts.",
-        });
+        toast({ variant: "destructive", title: "Batching failed", description: data.detail || "Failed to process resumes." });
       }
     } catch (error) {
-      console.error("❌ Bulk creation error:", error);
-      
-      let errorMessage = "Could not connect to the server.";
-      
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          errorMessage = "Request timed out. Please try again.";
-        } else if (error.message.includes('fetch')) {
-          errorMessage = "Network error. Please check your connection.";
-        } else {
-          errorMessage = error.message;
-        }
-      }
-      
-      toast({
-        variant: "destructive",
-        title: "Creation failed",
-        description: typeof errorMessage === "string" ? errorMessage : JSON.stringify(errorMessage),
-      });
+      toast({ variant: "destructive", title: "Upload failed", description: "Could not connect to backend." });
     } finally {
-      setIsCreating(false);
-      setShowConfirmDialog(false);
+      setIsUploading(false);
+    }
+  };
+
+  const handleCreateAccounts = async (batch_id: string) => {
+    setIsCreating(batch_id);
+    try {
+      const response = await fetch(`http://localhost:8000/onboarding/create-accounts-for-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batch_id })
+      });
+      const data = await response.json();
+      if (response.ok && data.created_trainees) {
+        setResults((prev) => ({ ...prev, [batch_id]: data }));
+        toast({ title: "Accounts created", description: `${data.created_trainees.length} trainees processed.` });
+        await sendWelcomeEmails(data.created_trainees);
+      } else {
+        toast({ variant: "destructive", title: "Account creation failed", description: data.detail || "Failed to create accounts." });
+      }
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Could not connect to backend." });
+    } finally {
+      setIsCreating(null);
     }
   };
 
   const sendWelcomeEmails = async (trainees: CreatedTrainee[]) => {
     console.log(`📧 Attempting to send ${trainees.length} welcome emails...`);
     
-    // Check if EmailJS is available
     if (!window.emailjs) {
       console.warn("⚠️ EmailJS not available, skipping email sending");
       toast({
@@ -289,10 +221,8 @@ const TraineeOnboarding = () => {
 
   const resetForm = () => {
     setFile(null);
-    setTraineesData([]);
-    setCreatedTrainees([]);
-    setFailedTrainees([]);
-    setShowResults(false);
+    setBatches([]);
+    setResults({});
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
@@ -304,10 +234,10 @@ const TraineeOnboarding = () => {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Bulk Trainee Onboarding
+            Batch Trainee Onboarding
           </CardTitle>
           <CardDescription>
-            Upload a JSON file with trainee names and emails to create multiple trainee accounts at once.
+            Upload a zip file of PDF resumes to auto-allocate trainees into skill batches.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -320,220 +250,128 @@ const TraineeOnboarding = () => {
                 className="flex items-center gap-2"
               >
                 <Upload className="h-4 w-4" />
-                {isUploading ? "Processing..." : "Upload JSON File"}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={downloadSampleTemplate}
-                className="flex items-center gap-2"
-              >
-                <Download className="h-4 w-4" />
-                Download Template
+                {isUploading ? "Processing..." : "Upload Zip File"}
               </Button>
             </div>
-            
             <input
               ref={fileInputRef}
               type="file"
-              accept=".json"
+              accept=".zip"
               onChange={handleFileUpload}
               className="hidden"
             />
-
             {file && (
               <div className="flex items-center gap-2 p-3 bg-green-50 rounded-lg">
                 <FileText className="h-4 w-4 text-green-600" />
                 <span className="text-sm text-green-800">
-                  {file.name} ({traineesData.length} trainees)
+                  {file.name}
                 </span>
               </div>
             )}
           </div>
-
-          {/* Data Preview */}
-          {traineesData.length > 0 && (
-            <div className="space-y-4">
-              <h3 className="font-semibold">Data Preview</h3>
-              <div className="max-h-60 overflow-y-auto border rounded-lg">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 sticky top-0">
-                    <tr>
-                      <th className="px-4 py-2 text-left">Name</th>
-                      <th className="px-4 py-2 text-left">Email</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {traineesData.slice(0, 10).map((trainee, index) => (
-                      <tr key={index} className="border-t">
-                        <td className="px-4 py-2">{trainee.name}</td>
-                        <td className="px-4 py-2">{trainee.email}</td>
-                      </tr>
-                    ))}
-                    {traineesData.length > 10 && (
-                      <tr>
-                        <td colSpan={2} className="px-4 py-2 text-center text-gray-500">
-                          ... and {traineesData.length - 10} more trainees
-                        </td>
-                      </tr>
+          {/* Batch Display */}
+          {batches.length > 0 && (
+            <div className="space-y-6">
+              {batches.map((batch) => (
+                <Card key={batch.batch_id} className="border-2">
+                  <CardHeader>
+                    <CardTitle>
+                      {batch.is_next_batch ? "Next Batch (Overflow)" : `${batch.skill.toUpperCase()} Batch ${batch.batch_number}`}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="mb-2 text-sm text-gray-600">Trainees: {batch.trainees.length}</div>
+                    <div className="max-h-48 overflow-y-auto border rounded-lg mb-4">
+                      <table className="w-full text-xs">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="px-2 py-1 text-left">Name</th>
+                            <th className="px-2 py-1 text-left">Email</th>
+                            <th className="px-2 py-1 text-left">Skill</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {batch.trainees.map((t, idx) => (
+                            <tr key={idx} className="border-t">
+                              <td className="px-2 py-1">{t.name}</td>
+                              <td className="px-2 py-1">{t.email}</td>
+                              <td className="px-2 py-1">{t.skill}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <Button
+                      onClick={() => handleCreateAccounts(batch.batch_id)}
+                      disabled={isCreating === batch.batch_id || results[batch.batch_id]?.status === "success"}
+                      className="flex items-center gap-2"
+                    >
+                      <Send className="h-4 w-4" />
+                      {isCreating === batch.batch_id ? "Creating Accounts..." : "Create Accounts"}
+                    </Button>
+                    {/* Results for this batch */}
+                    {results[batch.batch_id] && (
+                      <div className="mt-4">
+                        <div className="font-semibold mb-2">Results:</div>
+                        <div className="text-green-700 mb-1">Created: {results[batch.batch_id].created_trainees.length}</div>
+                        <div className="text-red-700 mb-1">Failed: {results[batch.batch_id].failed_trainees.length}</div>
+                        {/* List created trainees with credentials */}
+                        {results[batch.batch_id].created_trainees.length > 0 && (
+                          <div className="max-h-32 overflow-y-auto border rounded-lg mt-2">
+                            <table className="w-full text-xs">
+                              <thead className="bg-green-50 sticky top-0">
+                                <tr>
+                                  <th className="px-2 py-1 text-left">Name</th>
+                                  <th className="px-2 py-1 text-left">Email</th>
+                                  <th className="px-2 py-1 text-left">Employee ID</th>
+                                  <th className="px-2 py-1 text-left">Password</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {results[batch.batch_id].created_trainees.map((trainee: CreatedTrainee, idx: number) => (
+                                  <tr key={idx} className="border-t">
+                                    <td className="px-2 py-1">{trainee.name}</td>
+                                    <td className="px-2 py-1">{trainee.email}</td>
+                                    <td className="px-2 py-1">{trainee.empId}</td>
+                                    <td className="px-2 py-1 font-mono text-xs">{trainee.password}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                        {/* List failed trainees */}
+                        {results[batch.batch_id].failed_trainees.length > 0 && (
+                          <div className="max-h-32 overflow-y-auto border rounded-lg mt-2">
+                            <table className="w-full text-xs">
+                              <thead className="bg-red-50 sticky top-0">
+                                <tr>
+                                  <th className="px-2 py-1 text-left">Name</th>
+                                  <th className="px-2 py-1 text-left">Email</th>
+                                  <th className="px-2 py-1 text-left">Error</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {results[batch.batch_id].failed_trainees.map((trainee: FailedTrainee, idx: number) => (
+                                  <tr key={idx} className="border-t">
+                                    <td className="px-2 py-1">{trainee.name}</td>
+                                    <td className="px-2 py-1">{trainee.email}</td>
+                                    <td className="px-2 py-1 text-red-600">{trainee.error}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
                     )}
-                  </tbody>
-                </table>
-              </div>
-              
-              <Button
-                onClick={() => setShowConfirmDialog(true)}
-                disabled={isCreating}
-                className="flex items-center gap-2"
-              >
-                <Send className="h-4 w-4" />
-                {isCreating ? "Creating Accounts..." : `Create ${traineesData.length} Trainee Accounts`}
-              </Button>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
           )}
-
-          {/* Instructions */}
-          <Alert>
-            <Info className="h-4 w-4" />
-            <AlertDescription>
-              <strong>JSON Format:</strong> Upload a JSON file with an array of objects containing "name" and "email" fields.
-              <br />
-              <strong>Email Delivery:</strong> Welcome emails with credentials will be automatically sent to each trainee.
-            </AlertDescription>
-          </Alert>
         </CardContent>
       </Card>
-
-      {/* Results Section */}
-      {showResults && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-green-600" />
-              Creation Results
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* Summary */}
-            <div className="grid md:grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-green-50 rounded-lg">
-                <div className="text-2xl font-bold text-green-600">{createdTrainees.length}</div>
-                <div className="text-sm text-green-800">Successfully Created</div>
-              </div>
-              <div className="text-center p-4 bg-red-50 rounded-lg">
-                <div className="text-2xl font-bold text-red-600">{failedTrainees.length}</div>
-                <div className="text-sm text-red-800">Failed</div>
-              </div>
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">{traineesData.length}</div>
-                <div className="text-sm text-blue-800">Total Processed</div>
-              </div>
-            </div>
-
-            {/* Created Trainees */}
-            {createdTrainees.length > 0 && (
-              <div className="space-y-4">
-                <h3 className="font-semibold text-green-700">Successfully Created Trainees</h3>
-                <div className="max-h-60 overflow-y-auto border rounded-lg">
-                  <table className="w-full text-sm">
-                    <thead className="bg-green-50 sticky top-0">
-                      <tr>
-                        <th className="px-4 py-2 text-left">Name</th>
-                        <th className="px-4 py-2 text-left">Email</th>
-                        <th className="px-4 py-2 text-left">Employee ID</th>
-                        <th className="px-4 py-2 text-left">Password</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {createdTrainees.map((trainee, index) => (
-                        <tr key={index} className="border-t">
-                          <td className="px-4 py-2">{trainee.name}</td>
-                          <td className="px-4 py-2">{trainee.email}</td>
-                          <td className="px-4 py-2">
-                            <Badge variant="outline">{trainee.empId}</Badge>
-                          </td>
-                          <td className="px-4 py-2 font-mono text-xs">{trainee.password}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            {/* Failed Trainees */}
-            {failedTrainees.length > 0 && (
-              <div className="space-y-4">
-                <h3 className="font-semibold text-red-700">Failed Creations</h3>
-                <div className="max-h-60 overflow-y-auto border rounded-lg">
-                  <table className="w-full text-sm">
-                    <thead className="bg-red-50 sticky top-0">
-                      <tr>
-                        <th className="px-4 py-2 text-left">Name</th>
-                        <th className="px-4 py-2 text-left">Email</th>
-                        <th className="px-4 py-2 text-left">Error</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {failedTrainees.map((trainee, index) => (
-                        <tr key={index} className="border-t">
-                          <td className="px-4 py-2">{trainee.name}</td>
-                          <td className="px-4 py-2">{trainee.email}</td>
-                          <td className="px-4 py-2 text-red-600">{trainee.error}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            <Button onClick={resetForm} variant="outline">
-              Upload Another File
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Loading Overlay */}
-      {isCreating && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <h3 className="text-lg font-semibold mb-2">Creating Trainee Accounts</h3>
-              <p className="text-gray-600">Please wait while we create {traineesData.length} trainee accounts...</p>
-              <p className="text-sm text-gray-500 mt-2">This may take a few moments.</p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Confirmation Dialog */}
-      <AlertDialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Bulk Creation</AlertDialogTitle>
-            <AlertDialogDescription>
-              You are about to create {traineesData.length} trainee accounts. This action will:
-              <br />
-              • Generate unique Employee IDs and passwords for each trainee
-              <br />
-              • Send welcome emails with credentials to all trainees
-              <br />
-              • Create accounts in the training system
-              <br />
-              <br />
-              Are you sure you want to proceed?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBulkCreate}>
-              Create Accounts
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 };
