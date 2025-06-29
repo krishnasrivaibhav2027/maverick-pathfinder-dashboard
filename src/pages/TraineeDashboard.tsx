@@ -85,6 +85,64 @@ const TraineeDashboard = () => {
     { id: 8, title: "DevOps and CI/CD", status: "pending", progress: 0 }
   ];
 
+  const [progressData, setProgressData] = useState([]);
+  const [skillsData, setSkillsData] = useState([]);
+  const POLL_INTERVAL = 300000; // 5 minutes in ms
+
+  useEffect(() => {
+    let isMounted = true;
+    const intervalId = setInterval(fetchChartData, POLL_INTERVAL);
+
+    async function fetchChartData() {
+      try {
+        // Fetch Weekly Progress
+        const progressRes = await fetch('http://localhost:8000/batches/weekly-progress');
+        const progressJson = await progressRes.json();
+        // Find this trainee's batch (by empId)
+        let traineeBatch = null;
+        for (const batch of progressJson) {
+          if (batch.trainees && batch.trainees.some(t => t.email === trainee.email || t.empId === trainee.empId)) {
+            traineeBatch = batch;
+            break;
+          }
+        }
+        // Fallback: use first batch if not found
+        const batchProgress = traineeBatch ? traineeBatch.weeklyProgress : (progressJson[0]?.weeklyProgress || []);
+        // Map to chart format
+        const progressChartData = batchProgress.map(w => ({
+          week: w.week,
+          score: w.progress, // Assuming 'progress' is average score for the week
+          completion: w.progress // You can adjust if you have separate completion data
+        }));
+        if (isMounted) setProgressData(progressChartData);
+
+        // Fetch Skills Assessment
+        const skillsRes = await fetch('http://localhost:8000/analytics/skill-heatmap');
+        const skillsJson = await skillsRes.json();
+        // Find this trainee's batch index
+        let batchIdx = 0;
+        if (skillsJson.batches && Array.isArray(skillsJson.batches)) {
+          batchIdx = skillsJson.batches.findIndex(bn => bn.toLowerCase().includes(trainee.specialization?.toLowerCase() || ''));
+          if (batchIdx === -1) batchIdx = 0;
+        }
+        // Map skills for this batch
+        const skillsChartData = (skillsJson.skills || []).map((skill, i) => ({
+          skill,
+          score: skillsJson.matrix[i][batchIdx] ?? 0
+        }));
+        if (isMounted) setSkillsData(skillsChartData);
+      } catch (err) {
+        // Optionally handle error
+      }
+    }
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trainee]);
+
   useEffect(() => {
     // If user data is in location state and they need to change password, show the modal.
     if (trainee && trainee.password_is_temporary) {
@@ -145,21 +203,6 @@ const TraineeDashboard = () => {
       state: { user: trainee }
     });
   };
-
-  // Mock data for charts
-  const progressData = [
-    { week: 'Week 1', score: 65, completion: 25 },
-    { week: 'Week 2', score: 72, completion: 45 },
-    { week: 'Week 3', score: 78, completion: 65 },
-    { week: 'Week 4', score: 85, completion: 85 },
-  ];
-
-  const skillsData = [
-    { skill: 'Programming Basics', score: 90 },
-    { skill: 'Problem Solving', score: 85 },
-    { skill: 'Database Fundamentals', score: 78 },
-    { skill: 'Version Control', score: 82 },
-  ];
 
   const upcomingTasks = [
     { id: 1, title: "Complete JavaScript Fundamentals", due: "Tomorrow", priority: "High" },
@@ -432,17 +475,21 @@ const TraineeDashboard = () => {
                     <BarChart3 className="h-7 w-7 text-blue-400" />
                     <span className="text-xl font-bold text-blue-500">Weekly Progress</span>
                   </div>
-                  <div className="w-full h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={progressData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="week" />
-                        <YAxis />
-                        <Tooltip />
-                        <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={3} />
-                        <Line type="monotone" dataKey="completion" stroke="#10b981" strokeWidth={3} />
-                      </LineChart>
-                    </ResponsiveContainer>
+                  <div className="w-full h-64 flex items-center justify-center">
+                    {progressData.length === 0 ? (
+                      <span className="text-gray-400 text-lg">No data is available</span>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={progressData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="week" />
+                          <YAxis />
+                          <Tooltip />
+                          <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={3} />
+                          <Line type="monotone" dataKey="completion" stroke="#10b981" strokeWidth={3} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    )}
                   </div>
                 </div>
                 {/* Skills Assessment */}
@@ -451,16 +498,20 @@ const TraineeDashboard = () => {
                     <Target className="h-7 w-7 text-purple-400" />
                     <span className="text-xl font-bold text-purple-500">Skills Assessment</span>
                   </div>
-                  <div className="w-full h-64">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={skillsData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="skill" />
-                        <YAxis />
-                        <Tooltip />
-                        <Bar dataKey="score" fill="#6366f1" />
-                      </BarChart>
-                    </ResponsiveContainer>
+                  <div className="w-full h-64 flex items-center justify-center">
+                    {skillsData.length === 0 || skillsData.every(s => !s.score || s.score === 0) ? (
+                      <span className="text-gray-400 text-lg">No data is available</span>
+                    ) : (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={skillsData}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="skill" />
+                          <YAxis />
+                          <Tooltip />
+                          <Bar dataKey="score" fill="#6366f1" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    )}
                   </div>
                 </div>
               </div>
