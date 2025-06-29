@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Body, UploadFile, File, APIRouter, Depends
+from fastapi import FastAPI, HTTPException, Body, UploadFile, File, APIRouter, Depends, Path, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from bson import ObjectId
@@ -13,15 +13,17 @@ import os
 import requests
 import time
 import logging
+from docx import Document
+from collections import defaultdict
 
 from db import get_database, test_db_connection, ensure_indexes
 from models import (
     Trainee, Admin, DashboardStats, WeeklyProgress, 
     PhaseDistribution, Training, Task, LoginRequest, SetPasswordRequest,
-    ChangePasswordRequest, Batch
+    ChangePasswordRequest, Batch, Activity
 )
-from ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations, extract_text_from_pdfplumber, fast_extract_resume_fields
-from email_service import test_emailjs_connection, prepare_welcome_email_data
+from ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations, extract_text_from_pdf, extract_text_from_docx, fast_extract_resume_fields
+from email_service import send_welcome_email_smtp, test_smtp_connection
 from config import settings
 
 app = FastAPI(
@@ -45,6 +47,9 @@ router = APIRouter()
 
 BATCH_SIZE = 50
 SKILL_PRIORITY = ["python", "java", ".net"]
+
+# Store active WebSocket connections for activities
+active_activity_ws_connections = []
 
 def serialize_doc(doc):
     """Serialize MongoDB document for JSON response"""
@@ -78,13 +83,13 @@ async def startup_event():
     # Test all services
     db_status, db_message = await test_db_connection()
     ollama_status, ollama_message = await test_ollama_connection()
-    emailjs_status, emailjs_message = test_emailjs_connection()
+    smtp_status, smtp_message = await test_smtp_connection()
     
     print(f"📊 Database: {'✅' if db_status else '❌'} {db_message}")
     print(f"🤖 Ollama: {'✅' if ollama_status else '❌'} {ollama_message}")
-    print(f"📧 EmailJS: {'✅' if emailjs_status else '❌'} {emailjs_message} (Note: EmailJS emails are sent from the frontend, not backend)")
+    print(f"📧 SMTP: {'✅' if smtp_status else '❌'} {smtp_message}")
     
-    if db_status and emailjs_status:
+    if db_status and smtp_status:
         print("🎉 Critical services are ready!")
     else:
         print("⚠️  Some critical services are not ready. Check the configuration.")
@@ -94,9 +99,9 @@ async def read_root():
     """Health check endpoint that tests all services"""
     db_status, db_message = await test_db_connection()
     ollama_status, ollama_message = await test_ollama_connection()
-    emailjs_status, emailjs_message = test_emailjs_connection()
+    smtp_status, smtp_message = await test_smtp_connection()
 
-    overall_status = "ok" if db_status and emailjs_status else "error"
+    overall_status = "ok" if db_status and smtp_status else "error"
 
     html_content = f"""
     <html>
@@ -134,9 +139,9 @@ async def read_root():
                 <td>{ollama_message}</td>
             </tr>
             <tr>
-                <td>📧 EmailJS</td>
-                <td class="{'status-ok' if emailjs_status else 'status-error'}">{'✅ Configured' if emailjs_status else '❌ Error'}</td>
-                <td>{emailjs_message} <br><em>Note: EmailJS emails are sent from the frontend using the provided data. Backend does not send emails directly.</em></td>
+                <td>📧 SMTP</td>
+                <td class="{'status-ok' if smtp_status else 'status-error'}">{'✅ Configured' if smtp_status else '❌ Error'}</td>
+                <td>{smtp_message} <br><em>Note: SMTP emails are sent from the backend using Gmail SMTP.</em></td>
             </tr>
         </table>
         
@@ -148,7 +153,7 @@ async def read_root():
         </ul>
         
         <p><em>Frontend is available at: <a href="http://localhost:8080">http://localhost:8080</a></em></p>
-        <p><strong>ℹ️ EmailJS Integration:</strong> The backend only prepares email data for the frontend. Actual email sending is performed by the frontend using EmailJS's JavaScript SDK. If you want to confirm email delivery, consider implementing a callback from the frontend to the backend after sending.</p>
+        <p><strong>ℹ️ SMTP Integration:</strong> The backend now sends emails directly using Gmail SMTP. No frontend email integration required.</p>
         <p><em>© 2025 Hexaware Technologies. All rights reserved.</em></p>
     </body>
     </html>
@@ -217,18 +222,12 @@ async def login(login_request: LoginRequest):
                     result = await db.trainees.insert_one(new_trainee.model_dump())
                     if result.inserted_id:
                         print(f"✅ Trainee profile created successfully: {profile['empId']}")
-                        # Prepare email data for frontend to send via EmailJS
-                        email_data = prepare_welcome_email_data(
-                            login_request.email,
-                            login_request.name,
-                            profile["empId"],
-                            profile["password"]
-                        )
+                        email_result = await send_welcome_email_smtp(login_request.email, login_request.name, profile["empId"], profile["password"])
                         return JSONResponse(content={
                             "status": "account_created",
                             "user": serialize_doc(new_trainee.dict()),
                             "message": "Account created successfully",
-                            "emailData": email_data
+                            "emailResult": email_result
                         })
                     else:
                         raise HTTPException(status_code=500, detail="Failed to create trainee account.")
@@ -410,7 +409,6 @@ async def bulk_create_trainees(trainees_data: list = Body(...)):
         print(f"🚀 Bulk creation request received for {len(trainees_data)} trainees")
         created_trainees = []
         failed_trainees = []
-        
         for i, trainee_info in enumerate(trainees_data):
             try:
                 print(f"📝 Processing trainee {i+1}/{len(trainees_data)}: {trainee_info.get('name', 'Unknown')}")
@@ -461,7 +459,7 @@ async def bulk_create_trainees(trainees_data: list = Body(...)):
                 if result.inserted_id:
                     # Prepare email data for frontend to send via EmailJS
                     print(f"📧 Preparing email data for {trainee_info['email']}")
-                    email_data = prepare_welcome_email_data(
+                    email_result = await send_welcome_email_smtp(
                         trainee_info["email"],
                         trainee_info["name"],
                         profile["empId"],
@@ -473,7 +471,7 @@ async def bulk_create_trainees(trainees_data: list = Body(...)):
                         "email": trainee_info["email"],
                         "empId": profile["empId"],
                         "password": profile["password"],
-                        "emailData": email_data
+                        "emailResult": email_result
                     })
                     
                     print(f"✅ Trainee created successfully: {profile['empId']} - {trainee_info['name']}")
@@ -484,7 +482,6 @@ async def bulk_create_trainees(trainees_data: list = Body(...)):
                         "email": trainee_info["email"],
                         "error": "Failed to create trainee account"
                     })
-                    
             except Exception as e:
                 print(f"❌ Error processing trainee {i+1}: {str(e)}")
                 failed_trainees.append({
@@ -492,9 +489,7 @@ async def bulk_create_trainees(trainees_data: list = Body(...)):
                     "email": trainee_info.get("email", "Unknown"),
                     "error": str(e)
                 })
-        
         print(f"🎉 Bulk creation completed: {len(created_trainees)} created, {len(failed_trainees)} failed")
-        
         response_data = {
             "status": "success",
             "message": f"Bulk trainee creation completed. {len(created_trainees)} created, {len(failed_trainees)} failed.",
@@ -506,55 +501,91 @@ async def bulk_create_trainees(trainees_data: list = Body(...)):
                 "failed": len(failed_trainees)
             }
         }
-        
         return JSONResponse(content=response_data)
-        
     except Exception as e:
         print(f"❌ Bulk creation error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Bulk creation error: {str(e)}")
 
 @router.post("/onboarding/upload-resumes")
 async def upload_resumes(file: UploadFile = File(...)):
-    zip_content = await file.read()
+    file_content = await file.read()
     trainees = []
+    
+    # Check file type and process accordingly
+    file_extension = file.filename.lower().split('.')[-1] if file.filename else ''
+    
     try:
-        with zipfile.ZipFile(io.BytesIO(zip_content)) as zip_file:
-            pdf_files = [f for f in zip_file.namelist() if f.lower().endswith('.pdf')]
-            if not pdf_files:
-                raise HTTPException(status_code=400, detail="No PDF files found in zip")
-            print(f"Processing {len(pdf_files)} PDF files...")
-            for pdf_name in pdf_files:
-                try:
-                    pdf_bytes = zip_file.read(pdf_name)
-                    print(f"Processing: {pdf_name}")
-                    text = extract_text_from_pdfplumber(pdf_bytes)
-                    if not text.strip():
-                        print(f"Warning: No text extracted from {pdf_name}")
+        if file_extension == 'zip':
+            # Process ZIP file containing PDFs and DOCX
+            with zipfile.ZipFile(io.BytesIO(file_content)) as zip_file:
+                resume_files = [f for f in zip_file.namelist() if f.lower().endswith('.pdf') or f.lower().endswith('.docx')]
+                if not resume_files:
+                    raise HTTPException(status_code=400, detail="No PDF or DOCX files found in zip")
+                print(f"Processing {len(resume_files)} resume files from ZIP...")
+                for resume_name in resume_files:
+                    try:
+                        resume_bytes = zip_file.read(resume_name)
+                        if resume_name.lower().endswith('.pdf'):
+                            text = extract_text_from_pdf(resume_bytes)
+                        elif resume_name.lower().endswith('.docx'):
+                            text = extract_text_from_docx(resume_bytes)
+                        else:
+                            continue  # skip unknown file types
+                        if not text.strip():
+                            print(f"Warning: No text extracted from {resume_name}")
+                            continue
+                        print(f"Extracted {len(text)} characters from {resume_name}")
+                        print(f"First 200 chars: {text[:200]}...")
+                        fast_result = fast_extract_resume_fields(text, SKILL_PRIORITY)
+                        name = fast_result.get("name") if fast_result and fast_result.get("name") else 'unknown'
+                        email = fast_result.get("email") if fast_result and fast_result.get("email") else 'unknown'
+                        skills = fast_result.get("skills") if fast_result and fast_result.get("skills") else ['unknown']
+                        # Lowercase all skills for matching
+                        skills = [s.lower() for s in skills]
+                        trainees.append({
+                            'name': name,
+                            'email': email,
+                            'skills': skills,
+                            'pdf': resume_name
+                        })
+                    except Exception as e:
+                        print(f"Error processing {resume_name}: {e}")
                         continue
-                    print(f"Extracted {len(text)} characters from {pdf_name}")
-                    print(f"First 200 chars: {text[:200]}...")
-                    fast_result = fast_extract_resume_fields(text, SKILL_PRIORITY)
-                    name = fast_result.get("name") if fast_result and fast_result.get("name") else 'unknown'
-                    email = fast_result.get("email") if fast_result and fast_result.get("email") else 'unknown'
-                    skills = fast_result.get("skills") if fast_result and fast_result.get("skills") else ['unknown']
-                    # Lowercase all skills for matching
-                    skills = [s.lower() for s in skills]
-                    trainees.append({
-                        'name': name,
-                        'email': email,
-                        'skills': skills,
-                        'pdf': pdf_name
-                    })
-                except Exception as e:
-                    print(f"Error processing {pdf_name}: {e}")
-                    continue
+        elif file_extension == 'docx':
+            # Process individual DOCX file
+            print(f"Processing DOCX file: {file.filename}")
+            try:
+                text = extract_text_from_docx(file_content)
+                if not text.strip():
+                    print(f"Warning: No text extracted from {file.filename}")
+                    raise HTTPException(status_code=400, detail="No text could be extracted from DOCX file")
+                print(f"Extracted {len(text)} characters from {file.filename}")
+                print(f"First 200 chars: {text[:200]}...")
+                fast_result = fast_extract_resume_fields(text, SKILL_PRIORITY)
+                name = fast_result.get("name") if fast_result and fast_result.get("name") else 'unknown'
+                email = fast_result.get("email") if fast_result and fast_result.get("email") else 'unknown'
+                skills = fast_result.get("skills") if fast_result and fast_result.get("skills") else ['unknown']
+                # Lowercase all skills for matching
+                skills = [s.lower() for s in skills]
+                trainees.append({
+                    'name': name,
+                    'email': email,
+                    'skills': skills,
+                    'pdf': file.filename
+                })
+            except Exception as e:
+                print(f"Error processing DOCX file: {e}")
+                raise HTTPException(status_code=500, detail=f"Error processing DOCX file: {str(e)}")
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported file type. Please upload a ZIP file containing PDFs or DOCX files, or a single DOCX file.")
+            
         if not trainees:
-            logging.warning("No trainees parsed from uploaded resumes. Check extraction and parsing logic.")
+            logging.warning("No trainees parsed from uploaded files. Check extraction and parsing logic.")
             raise HTTPException(status_code=400, detail="No valid resumes could be processed")
         print(f"Successfully processed {len(trainees)} trainees")
     except Exception as e:
-        print(f"Error processing zip file: {e}")
-        raise HTTPException(status_code=500, detail=f"Error processing zip file: {str(e)}")
+        print(f"Error processing file: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
 
     # --- New Batch Allocation Logic ---
     unallocated = trainees.copy()
@@ -613,8 +644,11 @@ async def upload_resumes(file: UploadFile = File(...)):
     }}
 
 @router.post("/onboarding/create-accounts-for-batch")
-async def create_accounts_for_batch(batch_id: str):
+async def create_accounts_for_batch(request: dict = Body(...)):
     try:
+        batch_id = request.get("batch_id")
+        if not batch_id:
+            raise HTTPException(status_code=400, detail="batch_id is required")
         batch = await db.batches.find_one({"_id": ObjectId(batch_id)})
         if not batch:
             raise HTTPException(status_code=404, detail="Batch not found")
@@ -649,7 +683,7 @@ async def create_accounts_for_batch(batch_id: str):
                 )
                 result = await db.trainees.insert_one(new_trainee.model_dump())
                 if result.inserted_id:
-                    email_data = prepare_welcome_email_data(
+                    email_result = await send_welcome_email_smtp(
                         trainee["email"],
                         trainee["name"],
                         profile["empId"],
@@ -660,9 +694,9 @@ async def create_accounts_for_batch(batch_id: str):
                         "email": trainee["email"],
                         "empId": profile["empId"],
                         "password": profile["password"],
-                        "emailData": email_data
+                        "emailResult": email_result
                     })
-                    print(f"[INFO] Account created and email prepared for: {trainee['email']}")
+                    print(f"[INFO] Account created and email sent for: {trainee['email']}")
                 else:
                     failed_trainees.append({
                         "name": trainee["name"],
@@ -756,6 +790,255 @@ async def get_unknown_trainees():
         return JSONResponse(content=data)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching unknown trainees: {str(e)}")
+
+@router.get("/batches/{batch_id}/skill-groups")
+async def get_skill_groups_for_batch(batch_id: str):
+    """Return summary for each skill group in a batch: skill name, average progress, trainee count."""
+    batch = await db.batches.find_one({"_id": ObjectId(batch_id)})
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    skill_groups = {}
+    for trainee in batch.get("trainees", []):
+        skill = trainee.get("skill", "unknown").lower()
+        if skill not in skill_groups:
+            skill_groups[skill] = {"trainees": [], "total_progress": 0}
+        skill_groups[skill]["trainees"].append(trainee)
+        skill_groups[skill]["total_progress"] += trainee.get("progress", 0)
+    result = []
+    for skill, data in skill_groups.items():
+        count = len(data["trainees"])
+        avg_progress = data["total_progress"] / count if count > 0 else 0
+        result.append({
+            "skill": skill,
+            "trainee_count": count,
+            "average_progress": avg_progress
+        })
+    return result
+
+@router.get("/batches/{batch_id}/skill-groups/{skill}/trainees")
+async def get_trainees_for_skill_group(batch_id: str, skill: str = Path(...)):
+    """Return all trainees in a batch for a given skill group, with their progress."""
+    batch = await db.batches.find_one({"_id": ObjectId(batch_id)})
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    trainees = [t for t in batch.get("trainees", []) if t.get("skill", "").lower() == skill.lower()]
+    return trainees
+
+@app.get("/dashboard/stats")
+async def get_dashboard_stats():
+    """Aggregate and return all key dashboard statistics for the admin dashboard."""
+    try:
+        # Total trainees
+        total_trainees = await db["trainees"].count_documents({})
+        # Active trainees
+        active_trainees = await db["trainees"].count_documents({"status": "active"})
+        # Completed phase 1 (assuming phase > 1 means completed phase 1)
+        completed_phase1 = await db["trainees"].count_documents({"phase": {"$gt": 1}})
+        # Average score
+        pipeline = [
+            {"$group": {"_id": None, "avgScore": {"$avg": "$score"}}}
+        ]
+        avg_score_result = await db["trainees"].aggregate(pipeline).to_list(length=1)
+        avg_score = round(avg_score_result[0]["avgScore"], 2) if avg_score_result and avg_score_result[0]["avgScore"] is not None else 0
+
+        # Phase distribution (by phase and skill)
+        phase_dist_pipeline = [
+            {"$group": {"_id": {"phase": "$phase", "skill": "$specialization"}, "count": {"$sum": 1}}}
+        ]
+        phase_dist_result = await db["trainees"].aggregate(phase_dist_pipeline).to_list(length=100)
+        phase_distribution = []
+        for entry in phase_dist_result:
+            phase = entry["_id"].get("phase", 1)
+            skill = entry["_id"].get("skill", "Unknown")
+            phase_distribution.append({
+                "phase": phase,
+                "skill": skill,
+                "count": entry["count"]
+            })
+
+        # Weekly progress (mocked if no timestamp data)
+        # If you have created_at or similar, you can aggregate by week
+        # For now, return an empty list or mock data
+        weekly_progress = []
+        # Example for real aggregation if you have created_at:
+        # pipeline = [
+        #     {"$group": {
+        #         "_id": {"$isoWeek": "$created_at"},
+        #         "newJoiners": {"$sum": 1},
+        #         "avgScore": {"$avg": "$score"}
+        #     }}
+        # ]
+        # weekly_progress = await db["trainees"].aggregate(pipeline).to_list(length=10)
+
+        return {
+            "totalTrainees": total_trainees,
+            "activeTrainees": active_trainees,
+            "completedPhase1": completed_phase1,
+            "avgScore": avg_score,
+            "phaseDistribution": phase_distribution,
+            "weeklyProgress": weekly_progress
+        }
+    except Exception as e:
+        print(f"[ERROR] Dashboard stats aggregation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Dashboard stats error: {str(e)}")
+
+@app.get("/batches/weekly-progress")
+async def get_batches_weekly_progress():
+    """Return weekly progress for each batch, grouped by phase."""
+    batches = await db.batches.find().to_list(length=100)
+    result = []
+    for batch in batches:
+        batch_id = str(batch['_id'])
+        batch_name = f"{batch.get('skill', 'Batch').capitalize()} Batch {batch.get('batch_number', '')}"
+        phase = batch.get('phase', 1)
+        # Group progress by week
+        weekly = defaultdict(list)
+        for trainee in batch.get('trainees', []):
+            # Use progress_updated_at or created_at
+            date_str = trainee.get('progress_updated_at') or trainee.get('created_at')
+            if not date_str:
+                continue
+            try:
+                dt = datetime.fromisoformat(date_str)
+            except Exception:
+                continue
+            week = dt.strftime('%Y-W%U')
+            weekly[week].append(trainee.get('progress', 0))
+        weekly_progress = [
+            { 'week': week, 'progress': round(sum(vals)/len(vals), 2) }
+            for week, vals in sorted(weekly.items())
+        ]
+        result.append({
+            'batchId': batch_id,
+            'batchName': batch_name,
+            'phase': phase,
+            'weeklyProgress': weekly_progress
+        })
+    return result
+
+@app.get("/activities")
+async def get_activities(limit: int = 3, offset: int = 0):
+    """Fetch recent activities, paginated and sorted by timestamp descending."""
+    cursor = db.activities.find().sort("timestamp", -1).skip(offset).limit(limit)
+    activities = []
+    async for doc in cursor:
+        doc["id"] = str(doc["_id"])
+        doc.pop("_id", None)
+        activities.append(doc)
+    return activities
+
+@app.websocket('/ws/activities')
+async def activities_ws(websocket: WebSocket):
+    await websocket.accept()
+    active_activity_ws_connections.append(websocket)
+    try:
+        while True:
+            await websocket.receive_text()  # Keep alive
+    except WebSocketDisconnect:
+        active_activity_ws_connections.remove(websocket)
+
+@app.post("/activities")
+async def log_activity(activity: Activity):
+    """Log a new activity and broadcast to WebSocket clients."""
+    activity_dict = activity.dict()
+    activity_dict["timestamp"] = activity_dict.get("timestamp") or datetime.utcnow().isoformat()
+    result = await db.activities.insert_one(activity_dict)
+    activity_dict["id"] = str(result.inserted_id)
+    # Broadcast to all connected WebSocket clients
+    import json
+    for ws in active_activity_ws_connections[:]:
+        try:
+            await ws.send_text(json.dumps(activity_dict))
+        except Exception:
+            try:
+                active_activity_ws_connections.remove(ws)
+            except ValueError:
+                pass
+    return activity_dict
+
+@app.get("/analytics/skill-heatmap")
+async def skill_heatmap():
+    """Return a heatmap matrix of average skill mastery per batch."""
+    batches = await db.batches.find().to_list(length=100)
+    skill_set = set()
+    batch_names = []
+    # Collect all skills and batch names
+    for batch in batches:
+        batch_names.append(f"{batch.get('skill', 'Batch').capitalize()} Batch {batch.get('batch_number', '')}")
+        for trainee in batch.get('trainees', []):
+            if 'skills' in trainee and isinstance(trainee['skills'], list):
+                for skill in trainee['skills']:
+                    skill_set.add(skill.capitalize())
+            elif 'skill' in trainee:
+                skill_set.add(trainee['skill'].capitalize())
+    skills = sorted(skill_set)
+    # Build matrix: skills x batches
+    matrix = []
+    for skill in skills:
+        row = []
+        for batch in batches:
+            # Find all trainees in this batch with this skill
+            values = []
+            for trainee in batch.get('trainees', []):
+                t_skills = []
+                if 'skills' in trainee and isinstance(trainee['skills'], list):
+                    t_skills = [s.capitalize() for s in trainee['skills']]
+                elif 'skill' in trainee:
+                    t_skills = [trainee['skill'].capitalize()]
+                if skill in t_skills:
+                    # Use progress or score as mastery
+                    if 'progress' in trainee:
+                        values.append(trainee['progress'])
+                    elif 'score' in trainee:
+                        values.append(trainee['score'])
+            avg = round(sum(values)/len(values), 2) if values else None
+            row.append(avg)
+        matrix.append(row)
+    return {"skills": skills, "batches": batch_names, "matrix": matrix}
+
+@app.get("/analytics/score-distribution")
+async def score_distribution():
+    """Return score distribution buckets and counts for all trainees, using 15-point intervals, excluding 0-15."""
+    trainees = await db.trainees.find().to_list(length=10000)
+    # Buckets: 16-30, 31-45, 46-60, 61-75, 76-90, 91-100
+    buckets = ["16-30", "31-45", "46-60", "61-75", "76-90", "91-100"]
+    bucket_ranges = [(16, 30), (31, 45), (46, 60), (61, 75), (76, 90), (91, 100)]
+    counts = [0] * len(buckets)
+    for t in trainees:
+        score = t.get('score', 0)
+        if score <= 15:
+            continue  # Exclude fresh accounts
+        for i, (low, high) in enumerate(bucket_ranges):
+            if low <= score <= high:
+                counts[i] += 1
+                break
+    # If all buckets are zero, return empty list
+    if all(c == 0 for c in counts):
+        return []
+    return [{"range": buckets[i], "count": counts[i]} for i in range(len(buckets))]
+
+@app.get("/analytics/completion-timeline")
+async def completion_timeline():
+    """Return completions per month (count of trainees who completed in each month)."""
+    # Assume phase > 1 means completed, and use last phase update or created_at as completion date
+    trainees = await db.trainees.find({"phase": {"$gt": 1}}).to_list(length=10000)
+    from collections import Counter
+    from datetime import datetime
+    month_counts = Counter()
+    for t in trainees:
+        date_str = t.get('progress_updated_at') or t.get('created_at')
+        if not date_str:
+            continue
+        try:
+            dt = datetime.fromisoformat(date_str)
+            month = dt.strftime('%b')
+            month_counts[month] += 1
+        except Exception:
+            continue
+    # Sort by month order (Jan, Feb, ...)
+    months_order = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    result = [{"month": m, "completed": month_counts[m]} for m in months_order if m in month_counts]
+    return result
 
 app.include_router(router)
 

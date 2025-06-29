@@ -6,6 +6,8 @@ Note: EmailJS requires frontend integration as it doesn't allow server-side API 
 import json
 from typing import Dict, Any, Tuple
 from config import settings
+import aiosmtplib
+from email.message import EmailMessage
 
 def validate_emailjs_config():
     """Validate EmailJS configuration"""
@@ -147,6 +149,57 @@ def run_email_test():
     
     print("🎉 EmailJS system test completed!")
     print("ℹ️  Remember: EmailJS requires frontend integration for actual sending")
+
+async def send_welcome_email_smtp(user_email: str, user_name: str, emp_id: str, temp_password: str) -> dict:
+    subject = settings.WELCOME_EMAIL_SUBJECT
+    body = f"""
+Hi {user_name},
+
+Welcome to Maverick Pathfinder!
+
+Your employee ID: {emp_id}
+Your temporary password: {temp_password}
+
+Login at: http://localhost:8080
+
+Best regards,\nMaverick Pathfinder Training Team
+"""
+    msg = EmailMessage()
+    msg["From"] = settings.FROM_EMAIL
+    msg["To"] = user_email
+    msg["Subject"] = subject
+    msg.set_content(body)
+    try:
+        await aiosmtplib.send(
+            msg,
+            hostname=settings.SMTP_HOST,
+            port=settings.SMTP_PORT,
+            username=settings.SMTP_USER,
+            password=settings.SMTP_PASS,
+            start_tls=True,
+        )
+        print(f"✅ SMTP email sent to {user_email}")
+        return {"success": True, "message": f"Email sent to {user_email}"}
+    except Exception as e:
+        print(f"❌ SMTP email failed for {user_email}: {e}")
+        return {"success": False, "message": str(e)}
+
+# For startup checks
+async def test_smtp_connection():
+    try:
+        # Try to connect to SMTP server
+        await aiosmtplib.SMTP(
+            hostname=settings.SMTP_HOST,
+            port=settings.SMTP_PORT,
+            username=settings.SMTP_USER,
+            password=settings.SMTP_PASS,
+            start_tls=True,
+        ).connect()
+        print("✅ SMTP connection successful.")
+        return True, "SMTP connection successful."
+    except Exception as e:
+        print(f"❌ SMTP connection failed: {e}")
+        return False, f"SMTP connection failed: {e}"
 
 if __name__ == "__main__":
     run_email_test()

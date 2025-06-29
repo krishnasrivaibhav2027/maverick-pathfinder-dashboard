@@ -5,11 +5,9 @@ from config import settings
 import re
 import asyncio
 import json
-import pdfplumber
-import pytesseract
-from PIL import Image
 import io
-import spacy
+import fitz  # PyMuPDF
+from docx import Document
 
 # Keep Ollama only for training recommendations where AI adds value
 from langchain_ollama import ChatOllama
@@ -55,13 +53,6 @@ LAST_NAMES = [
     "Brooks", "Chavez", "Wood", "James", "Bennett", "Gray", "Mendoza", "Ruiz", "Hughes",
     "Price", "Alvarez", "Castillo", "Sanders", "Patel", "Myers", "Long", "Ross", "Foster"
 ]
-
-# Load spaCy English model (make sure to install: python -m spacy download en_core_web_sm)
-try:
-    nlp = spacy.load("en_core_web_sm")
-except Exception as e:
-    nlp = None
-    print("spaCy model not loaded. Please run: python -m spacy download en_core_web_sm")
 
 def generate_secure_password(length=12):
     """Generate a secure password with specified requirements"""
@@ -273,49 +264,42 @@ async def extract_resume_fields_with_llama(resume_text: str) -> dict:
         print(f"Llama extraction failed: {e}")
         return None
 
-def extract_text_from_pdfplumber(pdf_bytes):
-    """
-    Try to extract text from PDF using pdfplumber. Fallback to OCR if needed.
-    """
-    try:
-        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-            text = "\n".join(page.extract_text() or "" for page in pdf.pages)
-        if text.strip():
-            return text
-    except Exception as e:
-        print(f"pdfplumber failed: {e}")
-    # Fallback to OCR for image-based PDFs
-    try:
-        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-            text = ""
-            for page in pdf.pages:
-                im = page.to_image(resolution=300)
-                pil_img = im.original
-                text += pytesseract.image_to_string(pil_img)
-            return text
-    except Exception as e:
-        print(f"OCR fallback failed: {e}")
-        return ""
+def extract_text_from_pdf(pdf_bytes):
+    """Extract text from PDF bytes using PyMuPDF."""
+    with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
+        text = "\n".join(page.get_text() for page in doc)
+    return text
+
+def extract_text_from_docx(docx_bytes):
+    """Extract text from DOCX bytes using python-docx."""
+    doc = Document(io.BytesIO(docx_bytes))
+    text = "\n".join(para.text for para in doc.paragraphs)
+    return text
 
 def fast_extract_resume_fields(text: str, skill_priority=None) -> dict:
     """
-    Fast extraction of name, email, and skills using regex and spaCy NER.
+    Fast extraction of name, email, and skills using regex and heuristics.
     Returns None if extraction is not confident.
     """
     if not text or not text.strip():
         return None
     # Email extraction
-    import re
     email_match = re.search(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}', text)
     email = email_match.group(0) if email_match else None
-    # Name extraction using spaCy NER
+    # Name extraction: use first non-empty line, or generate from email
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
     name = None
-    if nlp:
-        doc = nlp(text[:1000])  # Only first 1000 chars for speed
-        for ent in doc.ents:
-            if ent.label_ == "PERSON" and 2 <= len(ent.text.split()) <= 4:
-                name = ent.text.strip()
+    if lines:
+        # Heuristic: skip lines with 'resume', 'curriculum', or email
+        for line in lines:
+            if (len(line.split()) >= 2 and
+                'resume' not in line.lower() and
+                'curriculum' not in line.lower() and
+                '@' not in line):
+                name = line
                 break
+    if not name and email:
+        name = generate_name_from_email(email)
     # Skill extraction
     found_skill = None
     if skill_priority:

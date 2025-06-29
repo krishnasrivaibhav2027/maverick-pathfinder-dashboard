@@ -13,11 +13,11 @@ class Settings:
     """Application settings"""
     
     # Database settings
-    MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb+srv://gksvaibav99:admin@cluster0.rc32pqz.mongodb.net/maverick_dashboard?retryWrites=true&w=majority")
+    MONGODB_URL: str = os.getenv("MONGODB_URL", "mongodb+srv://gksvaibav99:vaibhu2027@cluster0.rc32pqz.mongodb.net/mydatabase?retryWrites=true&w=majority&tls=true")
     DATABASE_NAME: str = os.getenv("DATABASE_NAME", "maverick_dashboard")
     
     # EmailJS settings
-    EMAILJS_PUBLIC_KEY: str = os.getenv("EMAILJS_PUBLIC_KEY", "eaBdGX9iZD0BzCpex")
+    EMAILJS_PUBLIC_KEY: str = os.getenv("EMAILJS_PUBLIC_KEY", "06UffnmC9LOy8Mt_Y")
     EMAILJS_SERVICE_ID: str = os.getenv("EMAILJS_SERVICE_ID", "service_2s0dkxv")
     EMAILJS_TEMPLATE_ID: str = os.getenv("EMAILJS_TEMPLATE_ID", "template_x2bo3pz")
     
@@ -53,6 +53,13 @@ class Settings:
     # Email templates
     WELCOME_EMAIL_SUBJECT: str = "🎉 Welcome to Maverick Dashboard - Your Training Journey Begins!"
     PASSWORD_RESET_SUBJECT: str = "🔐 Maverick Dashboard - Password Reset"
+    
+    # SMTP configuration
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = "gksvaibav99@gmail.com"
+    SMTP_PASS: str = "fsck bwwz hhvk uabo"
+    FROM_EMAIL: str = "gksvaibav99@gmail.com"
     
     @classmethod
     def get_database_url(cls) -> str:

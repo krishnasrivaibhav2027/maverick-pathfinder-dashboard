@@ -46,6 +46,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Fragment } from "react";
 
+const accent = "#FF512F";
+const accent2 = "#F09819";
+const glass = "bg-white/60 backdrop-blur-md shadow-2xl border border-white/30";
+const font = { fontFamily: 'Inter, ui-rounded, system-ui, sans-serif' };
+
 const TraineeDashboard = () => {
   const navigate = useNavigate();
   const { empId } = useParams();
@@ -64,6 +69,8 @@ const TraineeDashboard = () => {
   const contentRefs = {
     phase1: useRef(null)
   };
+
+  const [activeTab, setActiveTab] = useState('overview');
 
   const phaseOneTrainings = [
     { id: 1, title: "Programming Fundamentals", status: "completed", progress: 100 },
@@ -92,7 +99,7 @@ const TraineeDashboard = () => {
         phase1: expandedPhase === 1 ? `${contentRefs.phase1.current.scrollHeight}px` : "0px"
       }));
     }
-  }, [expandedPhase]);
+  }, [expandedPhase, contentRefs.phase1]);
 
   const handleChangePassword = async () => {
     if (newPasswordChange !== confirmNewPasswordChange) {
@@ -305,144 +312,128 @@ const TraineeDashboard = () => {
     <>
       {/* First-time password set modal */}
       <AlertDialog open={showChangePasswordModal} onOpenChange={setShowChangePasswordModal}>
-        <AlertDialogContent>
+        <AlertDialogContent className={`rounded-3xl ${glass} p-8`} style={{ boxShadow: `0 8px 32px 0 ${accent}22` }}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Change Your Password</AlertDialogTitle>
+            <AlertDialogTitle className="text-xl font-bold text-orange-500">Change Your Password</AlertDialogTitle>
           </AlertDialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="old-password">Current Password</Label>
-              <Input id="old-password" type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} />
+              <Input id="old-password" type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="rounded-full bg-white/80" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="new-password-change">New Password</Label>
-              <Input id="new-password-change" type="password" value={newPasswordChange} onChange={(e) => setNewPasswordChange(e.target.value)} />
+              <Input id="new-password-change" type="password" value={newPasswordChange} onChange={(e) => setNewPasswordChange(e.target.value)} className="rounded-full bg-white/80" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-new-password-change">Confirm New Password</Label>
-              <Input id="confirm-new-password-change" type="password" value={confirmNewPasswordChange} onChange={(e) => setConfirmNewPasswordChange(e.target.value)} />
+              <Input id="confirm-new-password-change" type="password" value={confirmNewPasswordChange} onChange={(e) => setConfirmNewPasswordChange(e.target.value)} className="rounded-full bg-white/80" />
             </div>
           </div>
           <AlertDialogFooter>
-            <Button variant="outline" onClick={() => setShowChangePasswordModal(false)}>Cancel</Button>
-            <AlertDialogAction onClick={handleChangePassword} disabled={isChanging}>
+            <Button variant="outline" className="rounded-full" onClick={() => setShowChangePasswordModal(false)}>Cancel</Button>
+            <AlertDialogAction className="rounded-full bg-gradient-to-r from-orange-500 to-orange-400 text-white" onClick={handleChangePassword} disabled={isChanging}>
               {isChanging ? "Changing..." : "Change Password"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <div className="min-h-screen bg-slate-100 text-slate-800">
+      <div className="min-h-screen" style={{ background: "linear-gradient(135deg, #f8fafc 0%, #fff7f0 100%)" }}>
         {/* Header */}
-        <div className="bg-white shadow-sm border-b border-slate-200">
-          <div className="container mx-auto px-6 py-4">
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-blue-600 rounded-lg">
-                  <Brain className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-slate-800">Mavericks Training</h1>
-                  {trainee && <p className="text-sm text-slate-500">Welcome back, {trainee.name} ({trainee.empId})</p>}
-                </div>
+        <div className={`w-full ${glass} py-4 px-0 mb-8`} style={{ boxShadow: `0 8px 32px 0 ${accent}22` }}>
+          <div className="container mx-auto flex justify-between items-center" style={font}>
+            <div className="flex items-center gap-4">
+              <span className="rounded-full bg-gradient-to-tr from-orange-400 to-orange-500 p-3 shadow-lg">
+                <Brain className="h-7 w-7 text-white" />
+              </span>
+              <div>
+                <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: accent, letterSpacing: '-0.04em' }}>Mavericks Training</h1>
+                {trainee && <p className="text-base text-gray-500 font-medium">Welcome back, {trainee.name} ({trainee.empId})</p>}
               </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="flex items-center gap-2 border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-800">
-                    <User className="h-4 w-4" />
-                    <span>{trainee.name}</span>
-                    <ChevronDown className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setShowChangePasswordModal(true)}>
-                    <KeyRound className="mr-2 h-4 w-4" />
-                    <span>Change Password</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate('/')}>
-                    <LogOut className="mr-2 h-4 w-4" />
-                    <span>Logout</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="rounded-full flex items-center gap-2 border-orange-200 text-orange-500 hover:bg-orange-50 hover:text-orange-600 bg-white/80" style={font}>
+                  <User className="h-4 w-4" />
+                  <span>{trainee.name}</span>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuLabel>My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setShowChangePasswordModal(true)}>
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  <span>Change Password</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/')}> <LogOut className="mr-2 h-4 w-4" /> <span>Logout</span> </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
         <div className="container mx-auto px-6 py-8">
           {/* Quick Stats */}
-          <div className="grid md:grid-cols-4 gap-6 mb-8">
-            <Card className="bg-blue-500 text-white border-0 shadow-lg">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-blue-100 text-sm font-medium">Overall Progress</p>
-                    <p className="text-3xl font-bold">{trainee.progress}%</p>
-                  </div>
-                  <Target className="h-8 w-8 text-blue-200" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-green-500 text-white border-0 shadow-lg">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-green-100 text-sm font-medium">Current Phase</p>
-                    <p className="text-3xl font-bold">Phase {trainee.phase}</p>
-                  </div>
-                  <BookOpen className="h-8 w-8 text-green-200" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-purple-500 text-white border-0 shadow-lg">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-purple-100 text-sm font-medium">Phase 1 Score</p>
-                    <p className="text-3xl font-bold">{trainee.score}%</p>
-                  </div>
-                  <BarChart3 className="h-8 w-8 text-purple-200" />
-                </div>
-              </CardContent>
-            </Card>
-            
-            <Card className="bg-orange-500 text-white border-0 shadow-lg">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-orange-100 text-sm font-medium">Days Remaining</p>
-                    <p className="text-3xl font-bold">12</p>
-                  </div>
-                  <Calendar className="h-8 w-8 text-orange-200" />
-                </div>
-              </CardContent>
-            </Card>
+          <div className="grid md:grid-cols-4 gap-8 mb-12">
+            <div className={`rounded-3xl ${glass} p-6 flex flex-col items-center transition-transform hover:scale-105`} style={{ boxShadow: `0 8px 32px 0 #3b82f622` }}>
+              <div className="flex items-center gap-2 mb-2">
+                <Target className="h-7 w-7 text-blue-400" />
+                <span className="text-lg font-semibold text-blue-500">Overall Progress</span>
+              </div>
+              <span className="text-3xl font-extrabold mt-2 text-blue-600">{trainee.progress}%</span>
+            </div>
+            <div className={`rounded-3xl ${glass} p-6 flex flex-col items-center transition-transform hover:scale-105`} style={{ boxShadow: `0 8px 32px 0 #10b98122` }}>
+              <div className="flex items-center gap-2 mb-2">
+                <BookOpen className="h-7 w-7 text-emerald-400" />
+                <span className="text-lg font-semibold text-emerald-500">Current Phase</span>
+              </div>
+              <span className="text-3xl font-extrabold mt-2 text-emerald-600">Phase {trainee.phase}</span>
+            </div>
+            <div className={`rounded-3xl ${glass} p-6 flex flex-col items-center transition-transform hover:scale-105`} style={{ boxShadow: `0 8px 32px 0 #a78bfa22` }}>
+              <div className="flex items-center gap-2 mb-2">
+                <BarChart3 className="h-7 w-7 text-purple-400" />
+                <span className="text-lg font-semibold text-purple-500">Phase 1 Score</span>
+              </div>
+              <span className="text-3xl font-extrabold mt-2 text-purple-600">{trainee.score}%</span>
+            </div>
+            <div className={`rounded-3xl ${glass} p-6 flex flex-col items-center transition-transform hover:scale-105`} style={{ boxShadow: `0 8px 32px 0 #f59e0b22` }}>
+              <div className="flex items-center gap-2 mb-2">
+                <Calendar className="h-7 w-7 text-orange-400" />
+                <span className="text-lg font-semibold text-orange-500">Days Remaining</span>
+              </div>
+              <span className="text-3xl font-extrabold mt-2" style={{ color: accent2 }}>12</span>
+            </div>
           </div>
 
-          <Tabs defaultValue="training">
-            <TabsList className="bg-transparent p-0 border-b border-slate-200 mb-6">
-              <TabsTrigger value="overview" className="bg-transparent shadow-none border-b-2 border-transparent rounded-none data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 data-[state=active]:shadow-none text-slate-500 pb-3 px-4">Overview</TabsTrigger>
-              <TabsTrigger value="training" className="bg-transparent shadow-none border-b-2 border-transparent rounded-none data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 data-[state=active]:shadow-none text-slate-500 pb-3 px-4">Training</TabsTrigger>
-              <TabsTrigger value="assignments" className="bg-transparent shadow-none border-b-2 border-transparent rounded-none data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 data-[state=active]:shadow-none text-slate-500 pb-3 px-4">Assignments</TabsTrigger>
-              <TabsTrigger value="analytics" className="bg-transparent shadow-none border-b-2 border-transparent rounded-none data-[state=active]:border-blue-600 data-[state=active]:text-blue-700 data-[state=active]:shadow-none text-slate-500 pb-3 px-4">Analytics</TabsTrigger>
-            </TabsList>
+          {/* Tabs */}
+          <div className="flex justify-center mb-10">
+            <div className="flex gap-4 bg-white/60 backdrop-blur-md rounded-full shadow-lg p-2" style={font}>
+              {['overview', 'training', 'assignments', 'analytics'].map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-7 py-2 rounded-full font-semibold text-lg transition-all duration-200 shadow-sm border-2 ${activeTab === tab ? 'bg-gradient-to-r from-orange-500 to-orange-400 text-white border-orange-400 scale-105' : 'bg-white/80 text-orange-500 border-orange-200 hover:bg-orange-50 hover:scale-105'}`}
+                  style={{ minWidth: 120 }}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
 
-            <TabsContent value="overview" className="space-y-6">
-              <div className="grid lg:grid-cols-2 gap-6">
+          {/* Tab Content */}
+          {activeTab === 'overview' && (
+            <div className="space-y-8">
+              <div className="grid lg:grid-cols-2 gap-8">
                 {/* Progress Chart */}
-                <Card className="shadow-md border-slate-200">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <BarChart3 className="h-5 w-5 text-slate-500" />
-                      Weekly Progress
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={250}>
+                <div className={`rounded-3xl ${glass} p-8 shadow-xl`}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <BarChart3 className="h-7 w-7 text-blue-400" />
+                    <span className="text-xl font-bold text-blue-500">Weekly Progress</span>
+                  </div>
+                  <div className="w-full h-64">
+                    <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={progressData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="week" />
@@ -452,19 +443,16 @@ const TraineeDashboard = () => {
                         <Line type="monotone" dataKey="completion" stroke="#10b981" strokeWidth={3} />
                       </LineChart>
                     </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-
+                  </div>
+                </div>
                 {/* Skills Assessment */}
-                <Card className="shadow-md border-slate-200">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-lg">
-                      <Target className="h-5 w-5 text-slate-500" />
-                      Skills Assessment
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <ResponsiveContainer width="100%" height={250}>
+                <div className={`rounded-3xl ${glass} p-8 shadow-xl`}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <Target className="h-7 w-7 text-purple-400" />
+                    <span className="text-xl font-bold text-purple-500">Skills Assessment</span>
+                  </div>
+                  <div className="w-full h-64">
+                    <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={skillsData}>
                         <CartesianGrid strokeDasharray="3 3" />
                         <XAxis dataKey="skill" />
@@ -473,363 +461,172 @@ const TraineeDashboard = () => {
                         <Bar dataKey="score" fill="#6366f1" />
                       </BarChart>
                     </ResponsiveContainer>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Upcoming Tasks */}
-              <Card className="shadow-md border-slate-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-lg">
-                    <Clock className="h-5 w-5 text-slate-500" />
-                    Upcoming Tasks
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {upcomingTasks.map((task) => (
-                      <div key={task.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <p className="font-medium">{task.title}</p>
-                          <p className="text-sm text-gray-600">Due: {task.due}</p>
-                        </div>
-                        <Badge 
-                          variant={task.priority === 'High' ? 'destructive' : task.priority === 'Medium' ? 'default' : 'secondary'}
-                        >
-                          {task.priority}
-                        </Badge>
-                      </div>
-                    ))}
                   </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            <TabsContent value="training" className="space-y-6">
-              <div className="grid lg:grid-cols-2 gap-6">
-                {/* Phase 1 */}
-                <div 
-                  className={`
-                    relative transition-all duration-500 ease-in-out
-                    ${expandedPhase === 1 ? 'lg:col-span-2 z-10' : ''}
-                  `}
-                >
-                  <Card
-                    className={`
-                      shadow-md border-slate-200 overflow-hidden min-h-[250px]
-                      transition-[transform,box-shadow,border-color] duration-500 ease-in-out
-                      ${!expandedPhase && 'hover:scale-[1.02] cursor-pointer hover:shadow-xl hover:border-blue-300'}
-                    `}
-                    onClick={() => !expandedPhase && setExpandedPhase(1)}
-                  >
-                    <CardHeader>
-                      <div className="flex items-center gap-4">
-                        {expandedPhase === 1 && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="hover:bg-slate-100 transition-colors duration-200"
-                            onClick={handleCollapse}
-                          >
-                            <ArrowLeft className="h-5 w-5" />
-                          </Button>
-                        )}
-                        <div>
-                          <CardTitle className="flex items-center gap-2 text-lg">
-                            <CheckCircle className="h-5 w-5 text-green-500" />
-                            Phase 1: Foundation Training
-                          </CardTitle>
-                          <CardDescription>Core programming and development fundamentals</CardDescription>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="font-medium">Overall Progress</span>
-                          <span className="text-green-600 font-semibold">{trainee.score}%</span>
-                        </div>
-                        <Progress value={trainee.score} className="mb-4" />
-                      </div>
-
-                      <div
-                        ref={contentRefs.phase1}
-                        className="overflow-hidden transition-all duration-500 ease-in-out"
-                        style={{ height: contentHeight.phase1 }}
-                      >
-                        <div className="space-y-4 mt-6">
-                          {phaseOneTrainings.map((training, index) => (
-                            <div 
-                              key={training.id}
-                              className="p-6 rounded-lg border border-slate-200 transform transition-all duration-300 ease-in-out hover:scale-[1.01] hover:border-blue-300 hover:shadow-lg cursor-pointer bg-white group"
-                              style={{
-                                opacity: expandedPhase === 1 ? 1 : 0,
-                                transform: `translateY(${expandedPhase === 1 ? '0' : '20px'})`,
-                                transition: 'all 0.3s ease-in-out',
-                                transitionDelay: `${index * 100}ms`
-                              }}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  {training.status === "completed" ? (
-                                    <CheckCircle className="h-5 w-5 text-green-500 transition-transform duration-300 group-hover:scale-110" />
-                                  ) : (
-                                    <Clock className="h-5 w-5 text-blue-500 transition-transform duration-300 group-hover:scale-110" />
-                                  )}
-                                  <div>
-                                    <h3 className="text-lg font-medium group-hover:text-blue-600 transition-colors duration-300">
-                                      {training.title}
-                                    </h3>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <Badge 
-                                        variant={
-                                          training.status === "completed" 
-                                            ? "default" 
-                                            : training.status === "in-progress" 
-                                              ? "default" 
-                                              : "secondary"
-                                        }
-                                        className="transition-all duration-300 group-hover:bg-opacity-90"
-                                      >
-                                        {training.status.charAt(0).toUpperCase() + training.status.slice(1)}
-                                      </Badge>
-                                      <span className="text-sm text-gray-500">{training.progress}% Complete</span>
-                                    </div>
-                                  </div>
-                                </div>
-                                <ChevronRight className="h-5 w-5 text-gray-400 transition-transform duration-300 group-hover:translate-x-1" />
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
                 </div>
-
-                {/* Phase 2 */}
-                <div 
-                  className={`
-                    relative transition-opacity duration-500 ease-in-out
-                    ${expandedPhase === 1 ? 'invisible opacity-0' : 'opacity-100'}
-                  `}
-                >
-                  {trainee.score >= 80 ? (
-                    <Card
-                      className={`
-                        shadow-md border-slate-200 overflow-hidden min-h-[250px]
-                        transition-[transform,box-shadow,border-color] duration-500 ease-in-out
-                        ${!expandedPhase && 'hover:scale-[1.02] cursor-pointer hover:shadow-xl hover:border-blue-300'}
-                        ${expandedPhase === 2 ? 'lg:col-span-2 z-10' : ''}
-                      `}
-                      onClick={() => !expandedPhase && setExpandedPhase(2)}
-                    >
-                      <CardHeader>
-                        <div className="flex items-center gap-4">
-                          {expandedPhase === 2 && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="hover:bg-slate-100 transition-colors duration-200"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setExpandedPhase(null);
-                              }}
-                            >
-                              <ArrowLeft className="h-5 w-5" />
-                            </Button>
-                          )}
-                          <div>
-                            <CardTitle className="flex items-center gap-2 text-lg">
+              </div>
+              {/* Upcoming Tasks */}
+              <div className={`rounded-3xl ${glass} p-8 shadow-xl`}>
+                <div className="flex items-center gap-3 mb-4">
+                  <Clock className="h-7 w-7 text-orange-400" />
+                  <span className="text-xl font-bold text-orange-500">Upcoming Tasks</span>
+                </div>
+                <div className="space-y-3">
+                  {upcomingTasks.map((task) => (
+                    <div key={task.id} className="flex items-center justify-between p-3 bg-white/70 rounded-xl shadow-sm">
+                      <div>
+                        <p className="font-medium">{task.title}</p>
+                        <p className="text-sm text-gray-600">Due: {task.due}</p>
+                      </div>
+                      <Badge 
+                        variant={task.priority === 'High' ? 'destructive' : task.priority === 'Medium' ? 'default' : 'secondary'}
+                      >
+                        {task.priority}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {activeTab === 'training' && (
+            <div className="space-y-8">
+              <div className="grid lg:grid-cols-2 gap-8">
+                {/* Phase 1 Card */}
+                <div className={`rounded-3xl ${glass} p-8 shadow-xl cursor-pointer transition-transform hover:scale-105`} onClick={handleExpand}>
+                  <div className="flex items-center gap-3 mb-4">
+                    <CheckCircle className="h-7 w-7 text-emerald-400" />
+                    <span className="text-xl font-bold text-emerald-500">Phase 1: Foundation Training</span>
+                  </div>
+                  <div className="mb-4">
+                    <span className="font-medium text-gray-700">Core programming and development fundamentals</span>
+                  </div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-medium">Overall Progress</span>
+                    <span className="text-emerald-600 font-semibold">{trainee.score}%</span>
+                  </div>
+                  <Progress value={trainee.score} className="mb-4" />
+                  {expandedPhase === 1 && (
+                    <Button variant="ghost" size="icon" className="hover:bg-orange-50 transition-colors duration-200 mb-4" onClick={handleCollapse}>
+                      <ArrowLeft className="h-5 w-5" />
+                    </Button>
+                  )}
+                  {expandedPhase === 1 && (
+                    <div className="space-y-4 mt-6">
+                      {phaseOneTrainings.map((training, index) => (
+                        <div 
+                          key={training.id}
+                          className="p-6 rounded-xl border border-orange-100 bg-white/80 shadow group hover:scale-[1.01] transition-transform duration-300 cursor-pointer"
+                          style={{ transitionDelay: `${index * 100}ms` }}
+                        >
+                          <div className="flex items-center gap-3">
+                            {training.status === "completed" ? (
                               <CheckCircle className="h-5 w-5 text-green-500" />
-                              Phase 2: Advanced Training
-                            </CardTitle>
-                            <CardDescription>
-                              Advanced development and architecture concepts
-                            </CardDescription>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div className="flex justify-between items-center">
-                            <span className="font-medium">Overall Progress</span>
-                            <span className="text-slate-600 font-semibold">0%</span>
-                          </div>
-                          <Progress value={0} className="mb-4" />
-                        </div>
-
-                        <div className="space-y-4 mt-6">
-                          {phaseTwoTrainings.map((training, index) => (
-                            <div 
-                              key={training.id}
-                              className="p-6 rounded-lg border border-slate-200 
-                                transform transition-all duration-300 ease-in-out
-                                hover:scale-[1.01] hover:border-blue-300 hover:shadow-lg 
-                                cursor-pointer bg-white group"
-                              style={{
-                                opacity: 1,
-                                transform: 'translateY(0)',
-                                transition: 'all 0.3s ease-in-out',
-                                transitionDelay: `${index * 100}ms`
-                              }}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  {training.status === "completed" ? (
-                                    <CheckCircle className="h-5 w-5 text-green-500 transition-transform duration-300 group-hover:scale-110" />
-                                  ) : (
-                                    <Clock className="h-5 w-5 text-blue-500 transition-transform duration-300 group-hover:scale-110" />
-                                  )}
-                                  <div>
-                                    <h3 className="text-lg font-medium group-hover:text-blue-600 transition-colors duration-300">
-                                      {training.title}
-                                    </h3>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <Badge 
-                                        variant={
-                                          training.status === "completed" 
-                                            ? "default" 
-                                            : training.status === "in-progress" 
-                                              ? "default" 
-                                              : "secondary"
-                                        }
-                                        className="transition-all duration-300 group-hover:bg-opacity-90"
-                                      >
-                                        {training.status.charAt(0).toUpperCase() + training.status.slice(1)}
-                                      </Badge>
-                                      <span className="text-sm text-gray-500">{training.progress}% Complete</span>
-                                    </div>
-                                  </div>
-                                </div>
-                                <ChevronRight className="h-5 w-5 text-gray-400 transition-transform duration-300 group-hover:translate-x-1" />
+                            ) : (
+                              <Clock className="h-5 w-5 text-blue-500" />
+                            )}
+                            <div>
+                              <h3 className="text-lg font-medium group-hover:text-orange-600 transition-colors duration-300">
+                                {training.title}
+                              </h3>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge 
+                                  variant={
+                                    training.status === "completed" 
+                                      ? "default" 
+                                      : training.status === "in-progress" 
+                                        ? "default" 
+                                        : "secondary"
+                                  }
+                                >
+                                  {training.status.charAt(0).toUpperCase() + training.status.slice(1)}
+                                </Badge>
+                                <span className="text-sm text-gray-500">{training.progress}% Complete</span>
                               </div>
                             </div>
-                          ))}
+                          </div>
                         </div>
-                      </CardContent>
-                    </Card>
-                  ) : (
-                    <LockedPhaseCard />
+                      ))}
+                    </div>
                   )}
                 </div>
+                {/* Phase 2 Card */}
+                {trainee.score >= 80 ? (
+                  <UnlockedPhaseCard />
+                ) : (
+                  <LockedPhaseCard />
+                )}
               </div>
-            </TabsContent>
-
-            <TabsContent value="assignments" className="space-y-6">
-              <div className="grid gap-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Current Assignments</CardTitle>
-                    <CardDescription>Complete these assignments to progress in your training</CardDescription>
-                  </CardHeader>
-                  <CardContent>
+            </div>
+          )}
+          {activeTab === 'assignments' && (
+            <div className={`rounded-3xl ${glass} p-8 shadow-xl`}>
+              <div className="flex items-center gap-3 mb-4">
+                <BookOpen className="h-7 w-7 text-orange-400" />
+                <span className="text-xl font-bold text-orange-500">Assignments</span>
+              </div>
+              <div className="space-y-3">
+                {/* Placeholder for assignments list */}
+                <div className="text-gray-500">No assignments available yet.</div>
+              </div>
+            </div>
+          )}
+          {activeTab === 'analytics' && (
+            <div className="space-y-8">
+              <div className={`rounded-3xl ${glass} p-8 shadow-xl mb-8`}>
+                <div className="flex items-center gap-3 mb-4">
+                  <BarChart3 className="h-7 w-7 text-blue-400" />
+                  <span className="text-xl font-bold text-blue-500">AI-Generated Analytics Report</span>
+                </div>
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 mb-6">
+                  <div className="flex items-center gap-3 mb-4">
+                    <Brain className="h-6 w-6 text-blue-600" />
+                    <h3 className="text-lg font-semibold text-blue-900">AI Insights</h3>
+                  </div>
+                  <div className="space-y-3 text-blue-800">
+                    <p>• <strong>Strong Performance:</strong> Excelling in problem-solving and algorithmic thinking</p>
+                    <p>• <strong>Recommendation:</strong> Python specialization aligns with your analytical strengths</p>
+                    <p>• <strong>Areas for Improvement:</strong> Focus on database optimization techniques</p>
+                    <p>• <strong>Predicted Completion:</strong> On track to complete Phase 1 by next week</p>
+                  </div>
+                </div>
+                <div className="grid lg:grid-cols-2 gap-8">
+                  <div className={`rounded-3xl ${glass} p-6 shadow-xl`}>
+                    <div className="text-lg font-semibold mb-4">Performance Metrics</div>
                     <div className="space-y-4">
-                      <div className="border rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-semibold">JavaScript Calculator Project</h4>
-                          <Badge>In Progress</Badge>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-3">Create a functional calculator using vanilla JavaScript</p>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-500">Due: Tomorrow</span>
-                          <Button size="sm">Continue</Button>
-                        </div>
+                      <div className="flex justify-between">
+                        <span>Assignment Completion Rate</span>
+                        <span className="font-semibold">92%</span>
                       </div>
-                      
-                      <div className="border rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <h4 className="font-semibold">Database Schema Design</h4>
-                          <Badge variant="outline">Pending</Badge>
-                        </div>
-                        <p className="text-sm text-gray-600 mb-3">Design a database schema for an e-commerce application</p>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-500">Due: 5 days</span>
-                          <Button size="sm" variant="outline">Start</Button>
-                        </div>
+                      <div className="flex justify-between">
+                        <span>Average Quiz Score</span>
+                        <span className="font-semibold">87%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Time Management</span>
+                        <span className="font-semibold text-green-600">Excellent</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Peer Collaboration</span>
+                        <span className="font-semibold text-blue-600">Above Average</span>
                       </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                  <div className={`rounded-3xl ${glass} p-6 shadow-xl`}>
+                    <div className="text-lg font-semibold mb-4">Learning Velocity</div>
+                    <ResponsiveContainer width="100%" height={200}>
+                      <LineChart data={progressData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="week" />
+                        <YAxis />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
               </div>
-            </TabsContent>
-
-            <TabsContent value="analytics" className="space-y-6">
-              <div className="grid gap-6">
-                <Card className="shadow-md border-slate-200">
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <div>
-                      <CardTitle>AI-Generated Analytics Report</CardTitle>
-                      <CardDescription>Automated insights and performance summary</CardDescription>
-                    </div>
-                    <Button className="flex items-center gap-2">
-                      <Download className="h-4 w-4" />
-                      Download Report
-                    </Button>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-6">
-                      <div className="flex items-center gap-3 mb-4">
-                        <Brain className="h-6 w-6 text-blue-600" />
-                        <h3 className="text-lg font-semibold text-blue-900">AI Insights</h3>
-                      </div>
-                      <div className="space-y-3 text-blue-800">
-                        <p>• <strong>Strong Performance:</strong> Excelling in problem-solving and algorithmic thinking</p>
-                        <p>• <strong>Recommendation:</strong> Python specialization aligns with your analytical strengths</p>
-                        <p>• <strong>Areas for Improvement:</strong> Focus on database optimization techniques</p>
-                        <p>• <strong>Predicted Completion:</strong> On track to complete Phase 1 by next week</p>
-                      </div>
-                    </div>
-
-                    <div className="grid md:grid-cols-2 gap-6">
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg">Performance Metrics</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-4">
-                            <div className="flex justify-between">
-                              <span>Assignment Completion Rate</span>
-                              <span className="font-semibold">92%</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Average Quiz Score</span>
-                              <span className="font-semibold">87%</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Time Management</span>
-                              <span className="font-semibold text-green-600">Excellent</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span>Peer Collaboration</span>
-                              <span className="font-semibold text-blue-600">Above Average</span>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-lg">Learning Velocity</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <ResponsiveContainer width="100%" height={200}>
-                            <LineChart data={progressData}>
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="week" />
-                              <YAxis />
-                              <Tooltip />
-                              <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={2} />
-                            </LineChart>
-                          </ResponsiveContainer>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-          </Tabs>
+            </div>
+          )}
         </div>
       </div>
     </>

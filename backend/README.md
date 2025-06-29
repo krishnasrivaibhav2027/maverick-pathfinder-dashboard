@@ -30,7 +30,17 @@ AI-Powered Training Dashboard Backend API built with FastAPI, MongoDB, and Ollam
    pip install -r requirements.txt
    ```
 
-3. **Set up environment variables (optional):**
+3. **Install spaCy English model:**
+   ```bash
+   python -m spacy download en_core_web_sm
+   ```
+
+4. **Install Tesseract OCR (for PDF text extraction):**
+   - Windows: Download from https://github.com/UB-Mannheim/tesseract/wiki
+   - Linux: `sudo apt-get install tesseract-ocr`
+   - macOS: `brew install tesseract`
+
+5. **Set up environment variables (optional):**
    Create a `.env` file in the project root or set the variables directly:
    ```bash
    MONGODB_URL=your_mongodb_connection_string
@@ -39,14 +49,17 @@ AI-Powered Training Dashboard Backend API built with FastAPI, MongoDB, and Ollam
    SENDER_NAME="Your Sender Name"
    OLLAMA_BASE_URL=http://localhost:11434
    OLLAMA_MODEL=llama3
+   EMAILJS_PUBLIC_KEY=your_emailjs_public_key
+   EMAILJS_SERVICE_ID=your_emailjs_service_id
+   EMAILJS_TEMPLATE_ID=your_emailjs_template_id
    ```
 
-4. **Initialize the backend:**
+6. **Initialize the backend:**
    ```bash
    python startup.py
    ```
 
-5. **Start the server:**
+7. **Start the server:**
    ```bash
    python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000
    ```
@@ -75,6 +88,16 @@ The backend uses a centralized configuration system in `config.py`:
 - `GET /trainees/email/{email}` - Get trainee by email
 - `POST /trainees/{emp_id}/recommendations` - Get AI recommendations
 - `PUT /trainees/{emp_id}/progress` - Update trainee progress
+
+### Admins
+- `GET /admins` - List all admins
+
+### Onboarding
+- `POST /onboarding/upload-resumes` - Upload ZIP of PDF resumes
+- `POST /onboarding/create-accounts-for-batch` - Create trainee accounts for a batch
+
+### Batches
+- `GET /batches/grouped` - Get batches grouped by phase and batch number
 
 ## 🔐 Authentication Flow
 
@@ -206,6 +229,9 @@ The backend provides detailed logging for:
 | `OLLAMA_BASE_URL` | Ollama service URL | `http://localhost:11434` |
 | `OLLAMA_MODEL` | Ollama model name | `llama3` |
 | `DEBUG` | Debug mode | `True` |
+| `EMAILJS_PUBLIC_KEY` | EmailJS public key | `YOUR_EMAILJS_PUBLIC_KEY_HERE` |
+| `EMAILJS_SERVICE_ID` | EmailJS service ID | `YOUR_EMAILJS_SERVICE_ID_HERE` |
+| `EMAILJS_TEMPLATE_ID` | EmailJS template ID | `YOUR_EMAILJS_TEMPLATE_ID_HERE` |
 
 ## 🤝 Contributing
 

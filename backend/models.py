@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, EmailStr, validator
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 class Trainee(BaseModel):
     id: Optional[int] = Field(None, description="Unique identifier")
@@ -102,3 +102,14 @@ class Batch(BaseModel):
     is_next_batch: bool = False
     trainees: List[dict]  # Each dict: {name, email, pdf, skill}
     created_at: Optional[str] = None
+    accounts_created: Optional[bool] = False
+    next_batch_date: Optional[str] = None
+
+class Activity(BaseModel):
+    id: Optional[str] = None
+    type: str  # e.g., 'phase_completed', 'trainee_joined', 'alert', etc.
+    user: Optional[dict] = None  # {id, name, avatar}
+    message: str
+    details: Optional[str] = None
+    timestamp: str  # ISO format
+    meta: Optional[Dict[str, Any]] = None
