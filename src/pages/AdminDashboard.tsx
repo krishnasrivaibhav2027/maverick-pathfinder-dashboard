@@ -100,6 +100,31 @@ const getAdminName = () => {
   return localStorage.getItem('admin_name') || 'Admin';
 };
 
+// Add types for admin dashboard data
+interface AdminDashboardTrainee {
+  id: number;
+  name: string;
+  status: string;
+  last_active: string;
+  attempts: {
+    quiztask_id: number;
+    score: number;
+    status: string;
+    attempt_number: number;
+  }[];
+}
+interface AdminDashboardNotification {
+  id: number;
+  user_id: number;
+  type: string;
+  message: string;
+  created_at: string;
+}
+interface AdminDashboardData {
+  trainees: AdminDashboardTrainee[];
+  pending_notifications: AdminDashboardNotification[];
+}
+
 const AdminDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -141,6 +166,32 @@ const AdminDashboard = () => {
   const [completionTimeline, setCompletionTimeline] = useState<{ month: string; completed: number }[]>([]);
   const [completionTimelineLoading, setCompletionTimelineLoading] = useState(true);
   const [completionTimelineError, setCompletionTimelineError] = useState<string | null>(null);
+
+  // New: Real API data
+  const [dashboardData, setDashboardData] = useState<AdminDashboardData | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch('http://localhost:8000/admin/dashboard', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error('Failed to fetch admin dashboard');
+        const data: AdminDashboardData = await res.json();
+        setDashboardData(data);
+      } catch (err: unknown) {
+        setError((err as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboard();
+  }, []);
 
   useEffect(() => {
     setStatsLoading(true);

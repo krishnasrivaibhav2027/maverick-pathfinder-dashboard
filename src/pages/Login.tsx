@@ -14,46 +14,39 @@ const font = { fontFamily: 'Inter, ui-rounded, system-ui, sans-serif' };
 
 export default function LoginPage() {
   const [tab, setTab] = useState<'login' | 'signup'>('login');
-  const [empId, setEmpId] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  // Helper to detect role from Employee-ID
-  const detectRole = (empId: string) => {
-    if (empId.startsWith("MAV-")) return "trainee";
-    if (empId.startsWith("ADM-")) return "admin";
-    // Default fallback (could be improved)
-    return "trainee";
-  };
-
   const handleLogin = async () => {
-    if (!empId || !password) {
-      toast({ variant: "destructive", title: "Employee-ID and Password are required" });
+    if (!email || !password) {
+      toast({ variant: "destructive", title: "Email and Password are required" });
       return;
     }
     setIsLoading(true);
-    const role = detectRole(empId);
     try {
+      const formBody = new URLSearchParams();
+      formBody.append("username", email);
+      formBody.append("password", password);
       const response = await fetch("http://localhost:8000/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ empId, password, role }),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formBody.toString(),
       });
       const data = await response.json();
-      if (response.ok && data.status === "success") {
-        toast({ title: "✅ Login Successful", description: `Welcome back, ${data.user.name}!` });
-        if (role === "admin") {
-          localStorage.setItem('admin_name', data.user.name);
-          localStorage.setItem('is_admin', 'true');
+      if (response.ok && data.access_token) {
+        toast({ title: "✅ Login Successful" });
+        localStorage.setItem('token', data.access_token);
+        localStorage.setItem('user_id', data.user_id);
+        localStorage.setItem('role', data.role);
+        if (data.role === "admin") {
           navigate("/admin-dashboard");
         } else {
-          localStorage.removeItem('is_admin');
-          localStorage.removeItem('admin_name');
-          navigate(`/trainee-dashboard/${data.user.empId}`, { state: { user: data.user } });
+          navigate(`/trainee-dashboard/${data.user_id}`);
         }
       } else {
         toast({ variant: "destructive", title: "Login Failed", description: data.detail || "Invalid credentials." });
@@ -66,30 +59,24 @@ export default function LoginPage() {
   };
 
   const handleSignup = async () => {
-    if (!name || !email) {
-      toast({ variant: "destructive", title: "Name and Email are required" });
+    if (!name || !email || !signupPassword) {
+      toast({ variant: "destructive", title: "Name, Email, and Password are required" });
       return;
     }
     setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:8000/auth/login", {
+      const response = await fetch("http://localhost:8000/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, role: "trainee" }),
+        body: JSON.stringify({ name, email, password: signupPassword, role: "trainee" }),
       });
       const data = await response.json();
-      if (response.ok && data.status === "account_created") {
-        // Send welcome email using EmailJS if emailData is present
-        if (data.emailData) {
-          const emailResult = await sendEmailJs(data.emailData);
-          if (!emailResult.success) {
-            toast({ variant: "destructive", title: "Account created, but email failed to send.", description: emailResult.message });
-          }
-        }
-        toast({ title: "✅ Account Created", description: "Check your email for login credentials." });
+      if (response.ok && data.id) {
+        toast({ title: "✅ Account Created", description: "You can now log in with your credentials." });
         setTab('login');
         setName("");
         setEmail("");
+        setSignupPassword("");
       } else {
         toast({ variant: "destructive", title: "Signup Failed", description: data.detail || "Could not create account." });
       }
@@ -149,12 +136,12 @@ export default function LoginPage() {
               <>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label htmlFor="empid" className="text-sm font-medium" style={{ color: '#444', ...font }}>Employee-ID</Label>
-                    <Input id="empid" type="text" placeholder="e.g. MAV-0001 or ADM-0001" value={empId} onChange={e => setEmpId(e.target.value)} className="h-12 bg-gray-100/80 border-none placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-orange-300/60 rounded-xl shadow-inner transition-all" style={font} />
+                    <Label htmlFor="login-email" className="text-sm font-medium" style={{ color: '#444', ...font }}>Email Address</Label>
+                    <Input id="login-email" type="email" placeholder="your.email@company.com" value={email} onChange={e => setEmail(e.target.value)} className="h-12 bg-gray-100/80 border-none placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-orange-300/60 rounded-xl shadow-inner transition-all" style={font} />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="password" className="text-sm font-medium" style={{ color: '#444', ...font }}>Password</Label>
-                    <Input id="password" type="password" placeholder="Enter your password" value={password} onChange={e => setPassword(e.target.value)} className="h-12 bg-gray-100/80 border-none placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-orange-300/60 rounded-xl shadow-inner transition-all" style={font} />
+                    <Label htmlFor="login-password" className="text-sm font-medium" style={{ color: '#444', ...font }}>Password</Label>
+                    <Input id="login-password" type="password" placeholder="Enter your password" value={password} onChange={e => setPassword(e.target.value)} className="h-12 bg-gray-100/80 border-none placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-orange-300/60 rounded-xl shadow-inner transition-all" style={font} />
                   </div>
                 </div>
                 <div className="mt-8">
@@ -179,6 +166,10 @@ export default function LoginPage() {
                   <div className="space-y-2">
                     <Label htmlFor="signup-email" className="text-sm font-medium" style={{ color: '#444', ...font }}>Email Address</Label>
                     <Input id="signup-email" type="email" placeholder="your.email@company.com" value={email} onChange={e => setEmail(e.target.value)} className="h-12 bg-gray-100/80 border-none placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-orange-300/60 rounded-xl shadow-inner transition-all" style={font} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password" className="text-sm font-medium" style={{ color: '#444', ...font }}>Password</Label>
+                    <Input id="signup-password" type="password" placeholder="Create a password" value={signupPassword} onChange={e => setSignupPassword(e.target.value)} className="h-12 bg-gray-100/80 border-none placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-orange-300/60 rounded-xl shadow-inner transition-all" style={font} />
                   </div>
                 </div>
                 <div className="mt-8">

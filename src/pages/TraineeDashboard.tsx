@@ -58,6 +58,11 @@ const TraineeDashboard = () => {
   const trainee = location.state?.user;
   const { toast } = useToast();
 
+  // New: Real API data
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [selectedPhase, setSelectedPhase] = useState(null);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [oldPassword, setOldPassword] = useState("");
@@ -88,6 +93,28 @@ const TraineeDashboard = () => {
   const [progressData, setProgressData] = useState([]);
   const [skillsData, setSkillsData] = useState([]);
   const POLL_INTERVAL = 300000; // 5 minutes in ms
+
+  useEffect(() => {
+    const fetchDashboard = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const token = localStorage.getItem('token');
+        const id = empId || localStorage.getItem('user_id');
+        const res = await fetch(`http://localhost:8000/trainee/dashboard/${id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) throw new Error('Failed to fetch dashboard');
+        const data = await res.json();
+        setDashboardData(data);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDashboard();
+  }, [empId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -352,7 +379,39 @@ const TraineeDashboard = () => {
   }
 
   return (
-    <>
+    <div>
+      {loading && <div className="p-4">Loading dashboard...</div>}
+      {error && <div className="p-4 text-red-500">{error}</div>}
+      {dashboardData && (
+        <div className="p-4">
+          <h2 className="text-2xl font-bold mb-2">Welcome, {dashboardData.name}</h2>
+          {dashboardData.courses.map((course: any) => (
+            <div key={course.id} className="mb-4 p-2 border rounded-lg bg-white/80">
+              <h3 className="font-semibold text-lg">{course.name} (Phase {course.phase})</h3>
+              <div className="ml-4">
+                <div className="font-medium">Subtopics:</div>
+                <ul className="list-disc ml-6">
+                  {course.subtopics.map((s: any) => (
+                    <li key={s.id}>{s.title}</li>
+                  ))}
+                </ul>
+                <div className="font-medium mt-2">Quiz/Tasks:</div>
+                <ul className="list-disc ml-6">
+                  {course.quiztasks.map((q: any) => (
+                    <li key={q.id}>{q.type} (Subtopics: {q.subtopic_ids})</li>
+                  ))}
+                </ul>
+                <div className="font-medium mt-2">Attempts:</div>
+                <ul className="list-disc ml-6">
+                  {course.attempts.map((a: any, i: number) => (
+                    <li key={i}>QuizTask {a.quiztask_id}: Score {a.score}, Status {a.status}, Attempt {a.attempt_number}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       {/* First-time password set modal */}
       <AlertDialog open={showChangePasswordModal} onOpenChange={setShowChangePasswordModal}>
         <AlertDialogContent className={`rounded-3xl ${glass} p-8`} style={{ boxShadow: `0 8px 32px 0 ${accent}22` }}>
@@ -479,16 +538,16 @@ const TraineeDashboard = () => {
                     {progressData.length === 0 ? (
                       <span className="text-gray-400 text-lg">No data is available</span>
                     ) : (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={progressData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="week" />
-                          <YAxis />
-                          <Tooltip />
-                          <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={3} />
-                          <Line type="monotone" dataKey="completion" stroke="#10b981" strokeWidth={3} />
-                        </LineChart>
-                      </ResponsiveContainer>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={progressData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="week" />
+                        <YAxis />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={3} />
+                        <Line type="monotone" dataKey="completion" stroke="#10b981" strokeWidth={3} />
+                      </LineChart>
+                    </ResponsiveContainer>
                     )}
                   </div>
                 </div>
@@ -502,15 +561,15 @@ const TraineeDashboard = () => {
                     {skillsData.length === 0 || skillsData.every(s => !s.score || s.score === 0) ? (
                       <span className="text-gray-400 text-lg">No data is available</span>
                     ) : (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={skillsData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="skill" />
-                          <YAxis />
-                          <Tooltip />
-                          <Bar dataKey="score" fill="#6366f1" />
-                        </BarChart>
-                      </ResponsiveContainer>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={skillsData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="skill" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="score" fill="#6366f1" />
+                      </BarChart>
+                    </ResponsiveContainer>
                     )}
                   </div>
                 </div>
@@ -680,7 +739,7 @@ const TraineeDashboard = () => {
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 };
 
