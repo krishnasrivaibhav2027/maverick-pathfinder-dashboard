@@ -250,4 +250,31 @@ This project is part of the Maverick Pathfinder Dashboard system.
 For support and questions:
 - Check the troubleshooting section
 - Review the API documentation
-- Contact the development team 
+- Contact the development team
+
+# Backend (FastAPI)
+
+## Setup
+
+### Manual
+```sh
+python -m venv venv
+venv\Scripts\activate  # On Windows
+# or
+source venv/bin/activate  # On Mac/Linux
+pip install --upgrade pip
+pip install -r requirements.txt
+cp .env.example .env  # Edit as needed
+uvicorn app.main:app --reload
+```
+
+### Docker
+Handled by root docker-compose.yml
+
+## Environment Variables
+See `.env.example` for required variables.
+
+## Running Tests
+```sh
+# (Add your test instructions here)
+``` 
