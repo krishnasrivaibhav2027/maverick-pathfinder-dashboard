@@ -16,15 +16,15 @@ import logging
 from docx import Document
 from collections import defaultdict
 
-from db import get_database, test_db_connection, ensure_indexes
-from models import (
+from app.db import get_database, test_db_connection, ensure_indexes
+from app.models import (
     Trainee, Admin, DashboardStats, WeeklyProgress, 
     PhaseDistribution, Training, Task, LoginRequest, SetPasswordRequest,
     ChangePasswordRequest, Batch, Activity
 )
-from ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations, extract_text_from_pdf, extract_text_from_docx, fast_extract_resume_fields
-from email_service import send_welcome_email_smtp, test_smtp_connection
-from config import settings
+from app.ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations, extract_text_from_pdf, extract_text_from_docx, fast_extract_resume_fields
+from app.email_service import send_welcome_email_smtp, test_smtp_connection
+from app.config import settings
 
 app = FastAPI(
     title="Maverick Dashboard",
