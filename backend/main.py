@@ -15,6 +15,9 @@ import time
 import logging
 from docx import Document
 from collections import defaultdict
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from auth import create_access_token, verify_token
+from passlib.context import CryptContext
 
 from db import get_database, test_db_connection, ensure_indexes
 from models import (
@@ -35,7 +38,7 @@ app = FastAPI(
 # CORS Middleware Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=["http://localhost:8080"],  # Allow frontend origin
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -51,6 +54,13 @@ SKILL_PRIORITY = ["python", "java", ".net"]
 # Store active WebSocket connections for activities
 active_activity_ws_connections = []
 
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# In-memory cache for uploaded resumes (keyed by upload/session ID)
+resume_cache = {}
+
 def serialize_doc(doc):
     """Serialize MongoDB document for JSON response"""
     if doc and "_id" in doc:
@@ -64,6 +74,9 @@ def collapse_single_letters(line):
         words = [''.join(g) for g in re.findall(r'(?:[A-Za-z] ?)+', line)]
         return ' '.join([w.replace(' ', '') for w in words])
     return line
+
+def hash_password(password: str) -> str:
+    return pwd_context.hash(password)
 
 @app.on_event("startup")
 async def startup_event():
@@ -185,16 +198,11 @@ async def login(login_request: LoginRequest):
                 raise HTTPException(status_code=400, detail="User already exists. Please login with your password.")
             # Existing user login with password
             if user.get("password") == login_request.password:
-                # Update last login time
-                await user_collection.update_one(
-                    {"_id": user["_id"]},
-                    {"$set": {"last_login": datetime.now().isoformat()}}
-                )
-                return JSONResponse(content={
-                    "status": "success", 
-                    "user": serialize_doc(user),
-                    "message": "Login successful"
-                })
+                # Update last_login to now
+                await user_collection.update_one({"_id": user["_id"]}, {"$set": {"last_login": datetime.now().isoformat()}})
+                # Return user with updated last_login
+                user["last_login"] = datetime.now().isoformat()
+                return JSONResponse(content=serialize_doc(user))
             else:
                 raise HTTPException(status_code=401, detail="Invalid credentials")
         else:
@@ -278,7 +286,7 @@ async def set_password(request: SetPasswordRequest):
 
 @app.post("/api/user/change-password")
 async def change_password(request: ChangePasswordRequest):
-    """Allow a logged-in user to change their password."""
+    """Allow a logged-in user to change their password (no old password required)."""
     try:
         user_collection = db.trainees
         user = await user_collection.find_one({"email": request.email})
@@ -286,14 +294,10 @@ async def change_password(request: ChangePasswordRequest):
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # Verify old password
-        if user.get("password") != request.old_password:
-            raise HTTPException(status_code=401, detail="Incorrect old password")
-            
-        # Update to new password
+        # Directly update to new password (no old password check)
         result = await user_collection.update_one(
             {"_id": user["_id"]},
-            {"$set": {"password": request.new_password}}
+            {"$set": {"password": request.new_password, "password_is_temporary": False}}
         )
         
         if result.modified_count == 0:
@@ -506,142 +510,81 @@ async def bulk_create_trainees(trainees_data: list = Body(...)):
         print(f"❌ Bulk creation error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Bulk creation error: {str(e)}")
 
+@router.post("/signup/upload-resume")
+async def upload_resume_individual(file: UploadFile = File(...)):
+    """Accept a single resume upload, store in cache, return upload_id for admin approval flow."""
+    file_content = await file.read()
+    upload_id = str(uuid.uuid4())
+    resume_cache[upload_id] = {
+        'filename': file.filename,
+        'content': file_content,
+        'timestamp': time.time()
+    }
+    return {"status": "pending_approval", "upload_id": upload_id}
+
 @router.post("/onboarding/upload-resumes")
 async def upload_resumes(file: UploadFile = File(...)):
+    """Accept a zip of resumes, store each in cache, return list of upload_ids for admin approval flow."""
     file_content = await file.read()
-    trainees = []
-    
-    # Check file type and process accordingly
     file_extension = file.filename.lower().split('.')[-1] if file.filename else ''
-    
-    try:
-        if file_extension == 'zip':
-            # Process ZIP file containing PDFs and DOCX
-            with zipfile.ZipFile(io.BytesIO(file_content)) as zip_file:
-                resume_files = [f for f in zip_file.namelist() if f.lower().endswith('.pdf') or f.lower().endswith('.docx')]
-                if not resume_files:
-                    raise HTTPException(status_code=400, detail="No PDF or DOCX files found in zip")
-                print(f"Processing {len(resume_files)} resume files from ZIP...")
+    upload_ids = []
+    if file_extension == 'zip':
+        with zipfile.ZipFile(io.BytesIO(file_content)) as zip_file:
+            resume_files = [f for f in zip_file.namelist() if f.lower().endswith('.pdf') or f.lower().endswith('.docx')]
+            if not resume_files:
+                raise HTTPException(status_code=400, detail="No PDF or DOCX files found in zip")
                 for resume_name in resume_files:
-                    try:
                         resume_bytes = zip_file.read(resume_name)
-                        if resume_name.lower().endswith('.pdf'):
-                            text = extract_text_from_pdf(resume_bytes)
-                        elif resume_name.lower().endswith('.docx'):
-                            text = extract_text_from_docx(resume_bytes)
-                        else:
-                            continue  # skip unknown file types
-                        if not text.strip():
-                            print(f"Warning: No text extracted from {resume_name}")
-                            continue
-                        print(f"Extracted {len(text)} characters from {resume_name}")
-                        print(f"First 200 chars: {text[:200]}...")
-                        fast_result = fast_extract_resume_fields(text, SKILL_PRIORITY)
-                        name = fast_result.get("name") if fast_result and fast_result.get("name") else 'unknown'
-                        email = fast_result.get("email") if fast_result and fast_result.get("email") else 'unknown'
-                        skills = fast_result.get("skills") if fast_result and fast_result.get("skills") else ['unknown']
-                        # Lowercase all skills for matching
-                        skills = [s.lower() for s in skills]
-                        trainees.append({
-                            'name': name,
-                            'email': email,
-                            'skills': skills,
-                            'pdf': resume_name
-                        })
-                    except Exception as e:
-                        print(f"Error processing {resume_name}: {e}")
-                        continue
-        elif file_extension == 'docx':
-            # Process individual DOCX file
-            print(f"Processing DOCX file: {file.filename}")
-            try:
-                text = extract_text_from_docx(file_content)
-                if not text.strip():
-                    print(f"Warning: No text extracted from {file.filename}")
-                    raise HTTPException(status_code=400, detail="No text could be extracted from DOCX file")
-                print(f"Extracted {len(text)} characters from {file.filename}")
-                print(f"First 200 chars: {text[:200]}...")
-                fast_result = fast_extract_resume_fields(text, SKILL_PRIORITY)
-                name = fast_result.get("name") if fast_result and fast_result.get("name") else 'unknown'
-                email = fast_result.get("email") if fast_result and fast_result.get("email") else 'unknown'
-                skills = fast_result.get("skills") if fast_result and fast_result.get("skills") else ['unknown']
-                # Lowercase all skills for matching
-                skills = [s.lower() for s in skills]
-                trainees.append({
-                    'name': name,
-                    'email': email,
-                    'skills': skills,
-                    'pdf': file.filename
-                })
-            except Exception as e:
-                print(f"Error processing DOCX file: {e}")
-                raise HTTPException(status_code=500, detail=f"Error processing DOCX file: {str(e)}")
-        else:
-            raise HTTPException(status_code=400, detail="Unsupported file type. Please upload a ZIP file containing PDFs or DOCX files, or a single DOCX file.")
-            
-        if not trainees:
-            logging.warning("No trainees parsed from uploaded files. Check extraction and parsing logic.")
-            raise HTTPException(status_code=400, detail="No valid resumes could be processed")
-        print(f"Successfully processed {len(trainees)} trainees")
-    except Exception as e:
-        print(f"Error processing file: {e}")
-        raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
+                upload_id = str(uuid.uuid4())
+                resume_cache[upload_id] = {
+                    'filename': resume_name,
+                    'content': resume_bytes,
+                    'timestamp': time.time()
+                }
+                upload_ids.append(upload_id)
+        return {"status": "pending_approval", "upload_ids": upload_ids}
+    elif file_extension == 'docx':
+        upload_id = str(uuid.uuid4())
+        resume_cache[upload_id] = {
+            'filename': file.filename,
+            'content': file_content,
+            'timestamp': time.time()
+        }
+        return {"status": "pending_approval", "upload_ids": [upload_id]}
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file type. Please upload a ZIP file containing PDFs or DOCX files, or a single DOCX file.")
 
-    # --- New Batch Allocation Logic ---
-    unallocated = trainees.copy()
-    batches = {skill: [] for skill in SKILL_PRIORITY}
-    next_batch = []
-    allocated_emails = set()
+# Admin approval endpoint (example)
+@router.post("/onboarding/approve-resume")
+async def approve_resume(upload_id: str = Body(...)):
+    """On approval, extract info from resume, return JSON, and delete from cache."""
+    entry = resume_cache.pop(upload_id, None)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Resume not found in cache.")
+    filename = entry['filename']
+    content = entry['content']
+    if filename.lower().endswith('.pdf'):
+        text = extract_text_from_pdf(content)
+    elif filename.lower().endswith('.docx'):
+        text = extract_text_from_docx(content)
+    else:
+        raise HTTPException(status_code=400, detail="Unsupported file type for extraction.")
 
-    for skill in SKILL_PRIORITY:
-        for trainee in unallocated[:]:
-            if skill in trainee['skills'] and trainee['email'] not in allocated_emails:
-                if len(batches[skill]) < BATCH_SIZE:
-                    batches[skill].append(trainee)
-                    allocated_emails.add(trainee['email'])
-                    unallocated.remove(trainee)
+    fast_result = fast_extract_resume_fields(text, SKILL_PRIORITY)
+    name = fast_result.get("name") if fast_result and fast_result.get("name") else 'unknown'
+    email = fast_result.get("email") if fast_result and fast_result.get("email") else 'unknown'
+    skills = fast_result.get("skills") if fast_result and fast_result.get("skills") else ['unknown']
+    skills = [s.lower() for s in skills]
+    return {"name": name, "email": email, "skills": skills}
 
-    # Any remaining trainees go to next_batch
-    next_batch = unallocated
-
-    # Save batches to DB
-    batch_ids = []
-    now = datetime.now().isoformat()
-    for skill in SKILL_PRIORITY:
-        if batches[skill]:
-            batch_doc = Batch(
-                batch_number=1,
-                skill=skill,
-                phase=1,
-                is_next_batch=False,
-                trainees=batches[skill],
-                created_at=now
-            )
-            result = await db.batches.insert_one(batch_doc.model_dump())
-            batch_ids.append(str(result.inserted_id))
-            print(f"Batch created for {skill}: {len(batches[skill])} trainees")
-
-    # Save next_batch if any
-    if next_batch:
-        next_batch_doc = Batch(
-            batch_number=0,
-            skill='mixed',
-            phase=1,
-            is_next_batch=True,
-            trainees=next_batch,
-            created_at=now
-        )
-        result = await db.batches.insert_one(next_batch_doc.model_dump())
-        batch_ids.append(str(result.inserted_id))
-        print(f"Next batch reserved: {len(next_batch)} trainees")
-
-    return {"batch_ids": batch_ids, "summary": {
-        "python_batch": len(batches['python']),
-        "java_batch": len(batches['java']),
-        ".net_batch": len(batches['.net']),
-        "next_batch_count": len(next_batch),
-        "total_trainees": len(trainees)
-    }}
+# Admin rejection endpoint (example)
+@router.post("/onboarding/reject-resume")
+async def reject_resume(upload_id: str = Body(...)):
+    """On rejection, delete resume from cache."""
+    entry = resume_cache.pop(upload_id, None)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Resume not found in cache.")
+    return {"status": "deleted"}
 
 @router.post("/onboarding/create-accounts-for-batch")
 async def create_accounts_for_batch(request: dict = Body(...)):
@@ -1039,6 +982,182 @@ async def completion_timeline():
     months_order = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     result = [{"month": m, "completed": month_counts[m]} for m in months_order if m in month_counts]
     return result
+
+@app.post("/token")
+def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+    # Replace with real user validation
+    if form_data.username == "admin" and form_data.password == "password":
+        access_token = create_access_token(data={"sub": form_data.username})
+        return {"access_token": access_token, "token_type": "bearer"}
+    raise HTTPException(status_code=400, detail="Incorrect username or password")
+
+def get_current_user(token: str = Depends(oauth2_scheme)):
+    payload = verify_token(token)
+    if payload is None:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    return payload
+
+@app.get("/protected")
+def protected_route(current_user: dict = Depends(get_current_user)):
+    return {"msg": "You are authenticated", "user": current_user}
+
+@app.post("/signup")
+async def signup(name: str = Body(...), email: str = Body(...)):
+    user_collection = db["trainees"]
+    # Check if user exists
+    existing = await user_collection.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=400, detail="User already exists")
+    # Generate empId and temp password
+    profile = await create_trainee_profile(email)
+    empId = profile["empId"]
+    temp_password = profile["password"]
+    hashed_pw = hash_password(temp_password)
+    trainee = Trainee(name=name, email=email, password=hashed_pw, empId=empId)
+    await user_collection.insert_one(trainee.dict())
+    await send_welcome_email_smtp(email, name, empId, temp_password)
+    return {"status": "account_created", "message": "Check your email for your Employee ID and temporary password."}
+
+@router.get("/onboarding/pending-resumes")
+async def list_pending_resumes():
+    """Return a list of all pending resumes in the in-memory cache."""
+    return [
+        {"upload_id": upload_id, "filename": entry["filename"]}
+        for upload_id, entry in resume_cache.items()
+    ]
+
+@router.post("/onboarding/auto-allocate-and-create-account")
+async def auto_allocate_and_create_account(payload: dict = Body(...)):
+    """Auto-allocate a trainee to a batch based on skill and batch availability, create account, and send credentials."""
+    name = payload.get("name")
+    email = payload.get("email")
+    skills = payload.get("skills", [])
+    if not name or not email or not skills:
+        raise HTTPException(status_code=400, detail="Missing name, email, or skills.")
+    skill = None
+    for s in SKILL_PRIORITY:
+        if s in [sk.lower() for sk in skills]:
+            skill = s
+            break
+    if not skill:
+        skill = "mixed"
+    # Find all batches for this skill that are not next_batch
+    batches = await db.batches.find({"skill": skill, "is_next_batch": False}).to_list(length=100)
+    # Find the first batch that is not full
+    batch = next((b for b in batches if len(b.get("trainees", [])) < BATCH_SIZE), None)
+    if batch:
+        batch_id = batch["_id"]
+        # Check if trainee already in batch
+        already_in_batch = any(t.get("email") == email for t in batch.get("trainees", []))
+        if not already_in_batch:
+            await db.batches.update_one({"_id": batch_id}, {"$push": {"trainees": {"name": name, "email": email, "skills": skills, "skill": skill}}})
+    else:
+        now = datetime.now().isoformat()
+        batch_doc = Batch(
+            batch_number=1,  # or increment as needed
+            skill=skill,
+            phase=1,
+            is_next_batch=False,
+            trainees=[{"name": name, "email": email, "skills": skills, "skill": skill}],
+            created_at=now
+        )
+        result = await db.batches.insert_one(batch_doc.model_dump())
+        batch_id = result.inserted_id
+    # Create trainee account
+    existing = await db.trainees.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Trainee already exists.")
+    profile = await create_trainee_profile(email)
+    new_trainee = Trainee(
+        name=name,
+        email=email,
+        password=profile["password"],
+        empId=profile["empId"],
+        phase=1,
+        progress=0,
+        score=0,
+        status="active",
+        specialization=skill,
+        created_at=datetime.now().isoformat(),
+        last_login=datetime.now().isoformat()
+    )
+    result = await db.trainees.insert_one(new_trainee.model_dump())
+    if result.inserted_id:
+        email_result = await send_welcome_email_smtp(
+            email,
+            name,
+            profile["empId"],
+            profile["password"]
+        )
+        return {
+            "status": "success",
+            "batch_id": str(batch_id),
+            "empId": profile["empId"],
+            "password": profile["password"],
+            "emailResult": email_result
+        }
+    else:
+        raise HTTPException(status_code=500, detail="Failed to create trainee account.")
+
+@router.post("/onboarding/create-account-for-trainee")
+async def create_account_for_trainee(payload: dict = Body(...)):
+    """Create an account for a single trainee in a batch, generate credentials, and send welcome email."""
+    email = payload.get("email")
+    batch_id = payload.get("batch_id")
+    if not email or not batch_id:
+        raise HTTPException(status_code=400, detail="Missing email or batch_id.")
+    batch = await db.batches.find_one({"_id": ObjectId(batch_id)})
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found.")
+    trainee = next((t for t in batch.get("trainees", []) if t.get("email") == email), None)
+    if not trainee:
+        raise HTTPException(status_code=404, detail="Trainee not found in batch.")
+    existing = await db.trainees.find_one({"email": email})
+    if existing:
+        return {"status": "already_created", "empId": existing.get("empId"), "message": "Account already exists for this trainee."}
+    profile = await create_trainee_profile(email)
+    new_trainee = Trainee(
+        name=trainee["name"],
+        email=email,
+        password=profile["password"],
+        empId=profile["empId"],
+        phase=batch.get("phase", 1),
+        progress=0,
+        score=0,
+        status="active",
+        specialization=batch.get("skill", "Pending"),
+        created_at=datetime.now().isoformat(),
+        last_login=datetime.now().isoformat()
+    )
+    result = await db.trainees.insert_one(new_trainee.model_dump())
+    if result.inserted_id:
+        email_result = await send_welcome_email_smtp(
+            email,
+            trainee["name"],
+            profile["empId"],
+            profile["password"]
+        )
+        return {
+            "status": "success",
+            "empId": profile["empId"],
+            "password": profile["password"],
+            "emailResult": email_result
+        }
+    else:
+        raise HTTPException(status_code=500, detail="Failed to create trainee account.")
+
+@app.get("/trainees/{emp_id}/tasks")
+async def get_trainee_tasks(emp_id: str):
+    """Get all tasks assigned to a trainee by empId"""
+    try:
+        tasks = []
+        cursor = db["tasks"].find({"assignedTo": emp_id})
+        async for task in cursor:
+            task["_id"] = str(task["_id"])
+            tasks.append(task)
+        return {"tasks": tasks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching tasks: {str(e)}")
 
 app.include_router(router)
 

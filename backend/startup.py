@@ -18,23 +18,25 @@ async def test_services():
     print("🔧 Testing backend services...")
     
     try:
-        from . import db
-        from . import ai_agent
-        from . import email_service
+        from db import get_database
+        from ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations, extract_text_from_pdf, extract_text_from_docx, fast_extract_resume_fields
+        from email_service import send_welcome_email_smtp, test_smtp_connection
+        from models import Admin, Trainee, DashboardStats, WeeklyProgress, PhaseDistribution, Training, Task, LoginRequest, SetPasswordRequest, ChangePasswordRequest, Batch, Activity
+        from auth import create_access_token, verify_token
         
         # Test database connection
         print("📊 Testing database connection...")
-        db_status, db_message = await db.test_db_connection()
+        db_status, db_message = await get_database.test_db_connection()
         print(f"   Database: {'✅' if db_status else '❌'} {db_message}")
         
         # Test Ollama connection
         print("🤖 Testing Ollama connection...")
-        ollama_status, ollama_message = await ai_agent.test_ollama_connection()
+        ollama_status, ollama_message = await test_ollama_connection()
         print(f"   Ollama: {'✅' if ollama_status else '❌'} {ollama_message}")
         
         # Test Gmail SMTP connection
         print("📧 Testing EmailJS connection...")
-        smtp_status, smtp_message = email_service.test_emailjs_connection()
+        smtp_status, smtp_message = test_smtp_connection()
         print(f"   EmailJS: {'✅' if smtp_status else '❌'} {smtp_message}")
         
         # Overall status
@@ -52,11 +54,11 @@ async def test_services():
 async def create_sample_admin():
     """Create two sample admin users if none exist"""
     try:
-        from . import db
-        from . import models
+        from db import get_database
+        from models import Admin, Trainee
         from datetime import datetime
         
-        database = db.get_database()
+        database = get_database.get_database()
         
         # Check if admin exists
         admin_count = await database.admins.count_documents({})
@@ -65,7 +67,7 @@ async def create_sample_admin():
             print("👤 Creating sample admin users...")
             
             admins = [
-                models.Admin(
+                Admin(
                     name="Admin One",
                     email="admin1@maverick.com",
                     password="admin123",
@@ -73,7 +75,7 @@ async def create_sample_admin():
                     role="admin",
                     created_at=datetime.now().isoformat()
                 ),
-                models.Admin(
+                Admin(
                     name="Admin Two",
                     email="admin2@maverick.com",
                     password="admin123",
@@ -94,9 +96,9 @@ async def create_sample_admin():
 async def initialize_database():
     """Initialize database with required collections and indexes"""
     try:
-        from . import db
+        from db import get_database
         
-        database = db.get_database()
+        database = get_database.get_database()
         
         # Create indexes for better performance
         print("📊 Creating database indexes...")

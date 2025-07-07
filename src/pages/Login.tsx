@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { sendEmailJs } from "@/lib/emailjs";
-import { Rocket } from 'lucide-react';
+import { Rocket, Eye, EyeOff } from 'lucide-react';
 
 const accent = "#FF512F";
 const accent2 = "#F09819";
@@ -13,12 +13,15 @@ const glass = "bg-white/60 backdrop-blur-md shadow-2xl border border-white/30";
 const font = { fontFamily: 'Inter, ui-rounded, system-ui, sans-serif' };
 
 export default function LoginPage() {
-  const [tab, setTab] = useState<'login' | 'signup'>('login');
+  const [tab, setTab] = useState<'login' | 'signup' | 'wait_approval'>('login');
   const [empId, setEmpId] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [signupEmpId, setSignupEmpId] = useState("");
+  const [signupPassword, setSignupPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -44,16 +47,18 @@ export default function LoginPage() {
         body: JSON.stringify({ empId, password, role }),
       });
       const data = await response.json();
-      if (response.ok && data.status === "success") {
-        toast({ title: "✅ Login Successful", description: `Welcome back, ${data.user.name}!` });
+      if (response.ok && data.empId && data.name) {
+        toast({ title: "✅ Login Successful", description: `Welcome back, ${data.name}!` });
         if (role === "admin") {
-          localStorage.setItem('admin_name', data.user.name);
+          localStorage.setItem('admin_name', data.name);
           localStorage.setItem('is_admin', 'true');
+          localStorage.removeItem('empId');
           navigate("/admin-dashboard");
         } else {
           localStorage.removeItem('is_admin');
           localStorage.removeItem('admin_name');
-          navigate(`/trainee-dashboard/${data.user.empId}`, { state: { user: data.user } });
+          localStorage.setItem('empId', data.empId);
+          navigate(`/trainee-dashboard/${data.empId}`, { state: { user: data } });
         }
       } else {
         toast({ variant: "destructive", title: "Login Failed", description: data.detail || "Invalid credentials." });
@@ -72,21 +77,14 @@ export default function LoginPage() {
     }
     setIsLoading(true);
     try {
-      const response = await fetch("http://localhost:8000/auth/login", {
+      const response = await fetch("http://localhost:8000/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, role: "trainee" }),
+        body: JSON.stringify({ name, email }),
       });
       const data = await response.json();
       if (response.ok && data.status === "account_created") {
-        // Send welcome email using EmailJS if emailData is present
-        if (data.emailData) {
-          const emailResult = await sendEmailJs(data.emailData);
-          if (!emailResult.success) {
-            toast({ variant: "destructive", title: "Account created, but email failed to send.", description: emailResult.message });
-          }
-        }
-        toast({ title: "✅ Account Created", description: "Check your email for login credentials." });
+        toast({ title: "✅ Account Created", description: data.message });
         setTab('login');
         setName("");
         setEmail("");
@@ -150,11 +148,31 @@ export default function LoginPage() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="empid" className="text-sm font-medium" style={{ color: '#444', ...font }}>Employee-ID</Label>
-                    <Input id="empid" type="text" placeholder="e.g. MAV-0001 or ADM-0001" value={empId} onChange={e => setEmpId(e.target.value)} className="h-12 bg-gray-100/80 border-none placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-orange-300/60 rounded-xl shadow-inner transition-all" style={font} />
+                    <Input id="empid" type="text" placeholder="e.g. MAV-0001 or ADM-0001" value={empId} onChange={e => setEmpId(e.target.value)} className="h-12 bg-gray-100/80 border-none placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-orange-300/60 rounded-xl shadow-inner transition-all" style={font} onKeyDown={e => { if (e.key === 'Enter') handleLogin(); }} />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="password" className="text-sm font-medium" style={{ color: '#444', ...font }}>Password</Label>
-                    <Input id="password" type="password" placeholder="Enter your password" value={password} onChange={e => setPassword(e.target.value)} className="h-12 bg-gray-100/80 border-none placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-orange-300/60 rounded-xl shadow-inner transition-all" style={font} />
+                    <div className="relative">
+                      <Input
+                        id="password"
+                        type={showPassword ? "text" : "password"}
+                        placeholder="Enter your password"
+                        value={password}
+                        onChange={e => setPassword(e.target.value)}
+                        className="h-12 bg-gray-100/80 border-none placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-orange-300/60 rounded-xl shadow-inner transition-all pr-12"
+                        style={font}
+                        onKeyDown={e => { if (e.key === 'Enter') handleLogin(); }}
+                      />
+                      <button
+                        type="button"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500 focus:outline-none"
+                        tabIndex={-1}
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        onClick={() => setShowPassword(v => !v)}
+                      >
+                        {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="mt-8">
@@ -171,20 +189,60 @@ export default function LoginPage() {
               </>
             ) : (
               <>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name" className="text-sm font-medium" style={{ color: '#444', ...font }}>Full Name</Label>
-                    <Input id="name" type="text" placeholder="John Doe" value={name} onChange={e => setName(e.target.value)} className="h-12 bg-gray-100/80 border-none placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-orange-300/60 rounded-xl shadow-inner transition-all" style={font} />
+                <div className="space-y-6 flex flex-col items-center">
+                  {/* Download Resume Template */}
+                  <a
+                    href="/student-template-v3.doc"
+                    download
+                    className="w-full"
+                  >
+                    <Button className="w-full h-12 text-white font-bold rounded-full shadow-lg bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500 focus:ring-4 focus:ring-orange-300/50 transition-all duration-300 transform hover:scale-105" style={font}>
+                      Download Resume Template
+                    </Button>
+                  </a>
+                  <div className="text-sm text-gray-600 text-center max-w-md">
+                    Please download the template, fill it out, and upload it <b>as a PDF</b>.
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="signup-email" className="text-sm font-medium" style={{ color: '#444', ...font }}>Email Address</Label>
-                    <Input id="signup-email" type="email" placeholder="your.email@company.com" value={email} onChange={e => setEmail(e.target.value)} className="h-12 bg-gray-100/80 border-none placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-orange-300/60 rounded-xl shadow-inner transition-all" style={font} />
-                  </div>
-                </div>
-                <div className="mt-8">
-                  <Button className="w-full h-12 text-white font-bold rounded-full shadow-lg bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500 focus:ring-4 focus:ring-orange-300/50 transition-all duration-300 transform hover:scale-105" style={font} onClick={handleSignup} disabled={isLoading}>
-                    {isLoading ? "Processing..." : "Sign Up"}
-                  </Button>
+                  {/* Upload Resume */}
+                  <input
+                    type="file"
+                    accept=".pdf"
+                    className="w-full border border-orange-200 rounded-xl p-3 bg-gray-100/80 focus:bg-white focus:ring-2 focus:ring-orange-300/60 shadow-inner transition-all"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setIsLoading(true);
+                      const formData = new FormData();
+                      formData.append('file', file);
+                      try {
+                        const response = await fetch('http://localhost:8000/signup/upload-resume', {
+                          method: 'POST',
+                          body: formData,
+                        });
+                        const data = await response.json();
+                        if (response.ok && data.status === 'pending_approval') {
+                          toast({ title: 'Resume Uploaded', description: 'Wait for admin approval to receive credentials.' });
+                          setTab('wait_approval');
+                        } else {
+                          let errorMsg = data.detail;
+                          if (!errorMsg && Array.isArray(data)) errorMsg = data.map(e => e.msg).join(', ');
+                          if (!errorMsg && typeof data === 'object') errorMsg = JSON.stringify(data);
+                          toast({ variant: 'destructive', title: 'Upload Failed', description: errorMsg || 'Could not upload resume.' });
+                        }
+                      } catch (error) {
+                        toast({ variant: 'destructive', title: 'Connection Error', description: 'Could not connect to the server.' });
+                      } finally {
+                        setIsLoading(false);
+                      }
+                    }}
+                    disabled={isLoading}
+                  />
+                  {/* Status message for waiting approval */}
+                  {tab === 'wait_approval' && (
+                    <div className="text-center mt-6 text-base text-orange-500 font-semibold">
+                      Wait for admin approval to receive your credentials.
+                    </div>
+                  )}
                 </div>
                 <div className="text-center mt-6 text-base" style={{ color: '#888', ...font }}>
                   Already have an account?{' '}

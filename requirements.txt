@@ -1,0 +1,5 @@
+# For frontend notification animation (install with npm or yarn):
+# npm install framer-motion
+# or
+# yarn add framer-motion
+# This is not a Python package, but is required for the frontend UI. 

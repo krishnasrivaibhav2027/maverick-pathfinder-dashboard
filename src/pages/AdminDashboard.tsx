@@ -21,7 +21,8 @@ import {
   Rocket,
   Send,
   ChevronDown,
-  X
+  X,
+  Bell
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -31,6 +32,8 @@ import BatchManagement from "@/components/BatchManagement";
 import TraineeOnboarding from "@/components/TraineeOnboarding";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
+import * as Popover from '@radix-ui/react-popover';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // Local type for batch
 interface BatchForCount {
@@ -87,7 +90,7 @@ interface ActivityType {
   message: string;
   details?: string;
   timestamp: string;
-  meta?: Record<string, any>;
+  meta?: Record<string, unknown>;
 }
 
 const accent = "#FF512F";
@@ -142,6 +145,28 @@ const AdminDashboard = () => {
   const [completionTimelineLoading, setCompletionTimelineLoading] = useState(true);
   const [completionTimelineError, setCompletionTimelineError] = useState<string | null>(null);
 
+  const [pendingResumes, setPendingResumes] = useState<{ upload_id: string; filename: string }[]>([]);
+  const [pendingLoading, setPendingLoading] = useState(false);
+  const [pendingError, setPendingError] = useState<string | null>(null);
+  const [showExtracted, setShowExtracted] = useState(false);
+  const [extractedInfo, setExtractedInfo] = useState<{ name: string; email: string; skills: string[] } | null>(null);
+  const [accountCreated, setAccountCreated] = useState(false);
+  const [accountInfo, setAccountInfo] = useState<{ empId: string; password: string } | null>(null);
+
+  const [open, setOpen] = useState(false);
+
+  // Add a refresh function for active batches
+  const fetchActiveBatchCount = () => {
+    fetch("http://localhost:8000/batches")
+      .then(res => res.json())
+      .then((batches) => {
+        const count = Array.isArray(batches)
+          ? batches.filter((b: BatchForCount) => b.phase === 1 && !b.is_next_batch).length
+          : 0;
+        setActiveBatchCount(count);
+      });
+  };
+
   useEffect(() => {
     setStatsLoading(true);
     fetch("http://localhost:8000/dashboard/stats")
@@ -149,7 +174,7 @@ const AdminDashboard = () => {
         if (!res.ok) throw new Error("Failed to fetch dashboard stats");
         return res.json();
       })
-      .then(data => {
+      .then((data: DashboardStatsType) => {
         setDashboardStats(data);
         setStatsError(null);
       })
@@ -174,17 +199,11 @@ const AdminDashboard = () => {
     fetchTrainees();
   }, []);
 
-  // Fetch active batch count (phase 1 underway)
+  // Replace the useEffect for active batch count
   useEffect(() => {
-    fetch("http://localhost:8000/batches")
-      .then(res => res.json())
-      .then((batches) => {
-        // Count only non-next batches in phase 1
-        const count = Array.isArray(batches)
-          ? batches.filter((b: BatchForCount) => b.phase === 1 && !b.is_next_batch).length
-          : 0;
-        setActiveBatchCount(count);
-      });
+    fetchActiveBatchCount();
+    const interval = setInterval(fetchActiveBatchCount, 5000); // Poll every 5 seconds
+    return () => clearInterval(interval);
   }, []);
 
   // Fetch overflow batch (is_next_batch: true)
@@ -364,6 +383,86 @@ const AdminDashboard = () => {
     return () => { isMounted = false; clearInterval(interval); };
   }, []);
 
+  // Fetch pending resumes on mount
+  useEffect(() => {
+    setPendingLoading(true);
+    fetch("http://localhost:8000/onboarding/pending-resumes")
+      .then(res => res.json())
+      .then(data => {
+        setPendingResumes(data);
+        setPendingError(null);
+      })
+      .catch(err => {
+        setPendingError("Failed to fetch pending resumes");
+        setPendingResumes([]);
+      })
+      .finally(() => setPendingLoading(false));
+  }, []);
+
+  const handleApprove = async (upload_id: string) => {
+    try {
+      const res = await fetch("http://localhost:8000/onboarding/approve-resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(upload_id)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setExtractedInfo(data);
+        setShowExtracted(true);
+        setPendingResumes(pendingResumes.filter(r => r.upload_id !== upload_id));
+        toast({ title: "Resume Approved", description: `Extracted info for ${data.name}` });
+      } else {
+        let errorMsg = data.detail;
+        if (!errorMsg && Array.isArray(data)) errorMsg = data.map(e => e.msg).join(', ');
+        if (!errorMsg && typeof data === 'object') errorMsg = JSON.stringify(data);
+        toast({ variant: "destructive", title: "Approval Failed", description: errorMsg || "Unknown error" });
+      }
+    } catch (err) {
+      toast({ variant: "destructive", title: "Approval Error", description: "Could not connect to server." });
+    }
+  };
+
+  const handleReject = async (upload_id: string) => {
+    try {
+      const res = await fetch("http://localhost:8000/onboarding/reject-resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ upload_id })
+      });
+      if (res.ok) {
+        setPendingResumes(pendingResumes.filter(r => r.upload_id !== upload_id));
+        toast({ title: "Resume Rejected", description: `Resume ${upload_id} deleted from cache.` });
+      } else {
+        const data = await res.json();
+        toast({ variant: "destructive", title: "Rejection Failed", description: data.detail || "Unknown error" });
+      }
+    } catch (err) {
+      toast({ variant: "destructive", title: "Rejection Error", description: "Could not connect to server." });
+    }
+  };
+
+  const handleCreateAccount = async () => {
+    if (!extractedInfo) return;
+    try {
+      const res = await fetch("http://localhost:8000/onboarding/auto-allocate-and-create-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(extractedInfo)
+      });
+      const data = await res.json();
+      if (res.ok && data.status === "success") {
+        setAccountCreated(true);
+        setAccountInfo({ empId: data.empId, password: data.password });
+        toast({ title: "Account Created", description: `Credentials sent to ${extractedInfo.email}` });
+      } else {
+        toast({ variant: "destructive", title: "Account Creation Failed", description: data.detail || "Unknown error" });
+      }
+    } catch (err) {
+      toast({ variant: "destructive", title: "Account Creation Error", description: "Could not connect to server." });
+    }
+  };
+
   if (statsLoading) {
     return <div className="flex justify-center items-center min-h-screen text-xl font-bold">Loading dashboard statistics...</div>;
   }
@@ -386,13 +485,59 @@ const AdminDashboard = () => {
               <p className="text-base mt-1 font-semibold" style={{ color: accent2 }}>Welcome, {adminName}!</p>
             </div>
           </div>
-          <Button
-            className="rounded-full px-6 py-2 text-base font-semibold shadow-md bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500 text-white flex items-center gap-2 transition-all duration-200"
-            onClick={() => navigate('/')}
-            style={font}
-          >
-            <LogOut className="h-5 w-5" /> Logout
-          </Button>
+          <div className="flex items-center gap-4">
+            <Popover.Root open={open} onOpenChange={setOpen}>
+              <Popover.Trigger asChild>
+                <button
+                  className="rounded-full p-2 bg-white/80 hover:bg-orange-50 shadow border border-orange-100 transition-all relative"
+                  aria-label="Notifications"
+                >
+                  <Bell className="h-6 w-6 text-orange-400" />
+                  {pendingResumes.length > 0 && (
+                    <span className="absolute top-0 right-0 block h-3 w-3 rounded-full bg-red-500 border-2 border-white"></span>
+                  )}
+                </button>
+              </Popover.Trigger>
+              <Popover.Portal>
+                <AnimatePresence>
+                  {open && (
+                    <Popover.Content side="bottom" align="end" sideOffset={8} asChild>
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.7, y: -20 }}
+                        animate={{ opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 400, damping: 30 } }}
+                        exit={{ opacity: 0, scale: 0.7, y: -20, transition: { duration: 0.2 } }}
+                        className="rounded-2xl bg-white/20 shadow-2xl border border-white/40 p-6 min-w-[320px] max-w-xs"
+                        style={{ backdropFilter: 'blur(16px)' }}
+                      >
+                        <div className="font-bold text-lg text-orange-500 mb-2">Notifications</div>
+                        <div className="text-base text-gray-700">
+                          {pendingResumes.length > 0 ? (
+                            <>
+                              A trainee submitted resume needs to be approved for batch allocation.<br />
+                              <b>Check onboarding section.</b>
+                            </>
+                          ) : (
+                            <span>No notifications.</span>
+                          )}
+                        </div>
+                      </motion.div>
+                    </Popover.Content>
+                  )}
+                </AnimatePresence>
+              </Popover.Portal>
+            </Popover.Root>
+            <Button
+              className="rounded-full px-6 py-2 text-base font-semibold shadow-md bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500 text-white flex items-center gap-2 transition-all duration-200"
+              onClick={() => {
+                localStorage.removeItem('empId');
+                localStorage.removeItem('is_admin');
+                localStorage.removeItem('admin_name');
+                navigate('/');
+              }} style={font}
+            >
+              <LogOut className="h-5 w-5" /> Logout
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -786,8 +931,86 @@ const AdminDashboard = () => {
             </div>
           )}
           {activeTab === 'onboarding' && (
-            <div className={`rounded-3xl ${glass} p-8 shadow-xl`}>
+            <div className="mt-10">
               <TraineeOnboarding />
+              {/* Pending Resume Approvals section styled to match Batch Trainee Onboarding */}
+              <div className="rounded-3xl bg-white/70 backdrop-blur-md shadow-2xl border border-white/30 p-8 mt-10">
+                <h2 className="text-2xl font-bold text-orange-500 mb-2 flex items-center gap-2">
+                  <span className="inline-block rounded-full bg-orange-100 p-2"><Users className="h-7 w-7 text-orange-400" /></span>
+                  Pending Resume Approvals
+                </h2>
+                <p className="text-gray-500 mb-6 text-base">Review and approve or reject resumes submitted by trainees for onboarding.</p>
+                {pendingLoading ? (
+                  <div>Loading pending resumes...</div>
+                ) : pendingError ? (
+                  <div className="text-red-500">{pendingError}</div>
+                ) : pendingResumes.length === 0 ? (
+                  <div>No pending resumes for approval.</div>
+                ) : (
+                  <div className="space-y-4">
+                    {pendingResumes.map(r => (
+                      <div key={r.upload_id} className="flex items-center gap-4 p-4 bg-orange-50 rounded-xl shadow">
+                        <div className="flex-1">
+                          <div className="font-semibold">{r.filename}</div>
+                          <div className="text-xs text-gray-500">ID: {r.upload_id}</div>
+                        </div>
+                        <Button
+                          variant="default"
+                          onClick={() => handleApprove(r.upload_id)}
+                          className="rounded-full bg-gradient-to-r from-orange-500 to-orange-400 text-white px-6 py-2 font-semibold shadow-md hover:from-orange-600 hover:to-orange-500 transition-colors"
+                        >
+                          Approve
+                        </Button>
+                        <Button
+                          variant="destructive"
+                          onClick={() => handleReject(r.upload_id)}
+                          className="rounded-full font-semibold shadow-md px-6 py-2 ml-2"
+                        >
+                          Reject
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {/* Dialog for extracted info */}
+                {showExtracted && extractedInfo && (
+                  <Dialog open={showExtracted} onOpenChange={setShowExtracted}>
+                    <DialogContent className="rounded-3xl bg-white/70 backdrop-blur-2xl shadow-2xl border border-white/40 p-10 max-w-md">
+                      <DialogHeader>
+                        <DialogTitle className="text-2xl font-bold text-orange-500 mb-4 drop-shadow-sm">Extracted Resume Info</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-2 text-base text-gray-800">
+                        <div><span className="font-semibold">Name:</span> {extractedInfo.name}</div>
+                        <div><span className="font-semibold">Email:</span> {extractedInfo.email}</div>
+                        <div><span className="font-semibold">Skills:</span> {extractedInfo.skills.join(", ")}</div>
+                        {accountCreated && accountInfo ? (
+                          <div className="mt-4 p-3 bg-green-50/80 rounded-xl shadow-sm">
+                            <div className="font-semibold text-green-700">Account Created!</div>
+                            <div>Employee ID: <b>{accountInfo.empId}</b></div>
+                            <div>Temporary Password: <b>{accountInfo.password}</b></div>
+                          </div>
+                        ) : (
+                          <Button
+                            className="mt-6 w-full rounded-full bg-gradient-to-r from-orange-500 to-orange-400 text-white font-semibold shadow-lg hover:from-orange-600 hover:to-orange-500 transition-colors"
+                            onClick={handleCreateAccount}
+                          >
+                            Create Account
+                          </Button>
+                        )}
+                      </div>
+                      <DialogClose asChild>
+                        <Button
+                          variant="outline"
+                          className="mt-3 w-full rounded-full font-semibold border-white/40 text-orange-500 bg-white/80 backdrop-blur hover:bg-orange-50/80"
+                          onClick={() => { setShowExtracted(false); setAccountCreated(false); setAccountInfo(null); }}
+                        >
+                          Close
+                        </Button>
+                      </DialogClose>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
             </div>
           )}
         </div>

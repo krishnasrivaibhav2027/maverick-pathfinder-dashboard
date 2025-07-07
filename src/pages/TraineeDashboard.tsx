@@ -9,7 +9,6 @@ import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogContent,
-  AlertDialogDescription,
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
@@ -33,6 +32,8 @@ import {
   KeyRound,
   ChevronRight,
   ArrowLeft,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
@@ -45,6 +46,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Fragment } from "react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import dayjs from 'dayjs';
 
 const accent = "#FF512F";
 const accent2 = "#F09819";
@@ -60,11 +63,14 @@ const TraineeDashboard = () => {
 
   const [selectedPhase, setSelectedPhase] = useState(null);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
-  const [oldPassword, setOldPassword] = useState("");
-  const [newPasswordChange, setNewPasswordChange] = useState("");
-  const [confirmNewPasswordChange, setConfirmNewPasswordChange] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
+  const [confirmError, setConfirmError] = useState("");
   const [isChanging, setIsChanging] = useState(false);
-  const [expandedPhase, setExpandedPhase] = useState(null);
+  const [expandedPhases, setExpandedPhases] = useState({ 1: false, 2: false });
   const [contentHeight, setContentHeight] = useState({ phase1: "0px" });
   const contentRefs = {
     phase1: useRef(null)
@@ -72,11 +78,38 @@ const TraineeDashboard = () => {
 
   const [activeTab, setActiveTab] = useState('overview');
 
-  const phaseOneTrainings = [
-    { id: 1, title: "Programming Fundamentals", status: "completed", progress: 100 },
-    { id: 2, title: "Version Control (Git)", status: "in-progress", progress: 60 },
-    { id: 3, title: "Database Fundamentals", status: "pending", progress: 0 },
-  ];
+  const [traineeState, setTrainee] = useState(trainee);
+  const [tasks, setTasks] = useState([]);
+
+  // Dynamically generate Phase 1 trainings based on trainee skill
+  function getPhaseOneTrainings(skill: string) {
+    const common = [
+      { id: 1, title: "Programming Fundamentals", status: "completed", progress: 100 },
+      { id: 2, title: "Object-Oriented Programming (OOP) Concepts", status: "pending", progress: 0 },
+      { id: 3, title: "Version Control with Git & GitHub", status: "pending", progress: 0 },
+      { id: 4, title: "Database Fundamentals", status: "pending", progress: 0 },
+      { id: 5, title: "Software Development Lifecycle & Agile Basics", status: "pending", progress: 0 },
+      { id: 6, title: "Basic Data Structures & Algorithms", status: "pending", progress: 0 },
+      { id: 7, title: "Debugging & Problem Solving", status: "pending", progress: 0 },
+    ];
+    const python = [
+      { id: 101, title: "Python Programming Essentials", status: "pending", progress: 0 },
+      { id: 102, title: "Intro to Python Libraries (NumPy, Pandas, Requests, Matplotlib)", status: "pending", progress: 0 },
+    ];
+    const java = [
+      { id: 201, title: "Java Programming Essentials", status: "pending", progress: 0 },
+      { id: 202, title: "Intro to Java Libraries (Standard Library, JUnit)", status: "pending", progress: 0 },
+    ];
+    const dotnet = [
+      { id: 301, title: "C# Programming Essentials", status: "pending", progress: 0 },
+      { id: 302, title: "Intro to .NET Libraries (LINQ, File I/O, NUnit/xUnit)", status: "pending", progress: 0 },
+    ];
+    if (skill?.toLowerCase().includes("python")) return [...common, ...python];
+    if (skill?.toLowerCase().includes("java")) return [...common, ...java];
+    if (skill?.toLowerCase().includes(".net")) return [...common, ...dotnet];
+    return common;
+  }
+  const phaseOneTrainings = getPhaseOneTrainings(traineeState.specialization);
 
   const phaseTwoTrainings = [
     { id: 5, title: "Advanced Backend Development", status: "pending", progress: 0 },
@@ -88,6 +121,18 @@ const TraineeDashboard = () => {
   const [progressData, setProgressData] = useState([]);
   const [skillsData, setSkillsData] = useState([]);
   const POLL_INTERVAL = 300000; // 5 minutes in ms
+
+  const [jwt, setJwt] = useState(""); // Assume JWT is set on login and available here
+
+  // Password requirement checks
+  const pwChecks = [
+    { label: "At least 8 characters", valid: newPassword.length >= 8 },
+    { label: "One uppercase letter", valid: /[A-Z]/.test(newPassword) },
+    { label: "One number", valid: /[0-9]/.test(newPassword) },
+    { label: "One special character", valid: /[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(newPassword) },
+  ];
+  const allPwChecks = pwChecks.every(c => c.valid);
+  const passwordsMatch = newPassword && confirmPassword && newPassword === confirmPassword;
 
   useEffect(() => {
     let isMounted = true;
@@ -101,7 +146,7 @@ const TraineeDashboard = () => {
         // Find this trainee's batch (by empId)
         let traineeBatch = null;
         for (const batch of progressJson) {
-          if (batch.trainees && batch.trainees.some(t => t.email === trainee.email || t.empId === trainee.empId)) {
+          if (batch.trainees && batch.trainees.some(t => t.email === traineeState.email || t.empId === traineeState.empId)) {
             traineeBatch = batch;
             break;
           }
@@ -122,7 +167,7 @@ const TraineeDashboard = () => {
         // Find this trainee's batch index
         let batchIdx = 0;
         if (skillsJson.batches && Array.isArray(skillsJson.batches)) {
-          batchIdx = skillsJson.batches.findIndex(bn => bn.toLowerCase().includes(trainee.specialization?.toLowerCase() || ''));
+          batchIdx = skillsJson.batches.findIndex(bn => bn.toLowerCase().includes(traineeState.specialization?.toLowerCase() || ''));
           if (batchIdx === -1) batchIdx = 0;
         }
         // Map skills for this batch
@@ -141,74 +186,106 @@ const TraineeDashboard = () => {
       clearInterval(intervalId);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trainee]);
+  }, [traineeState]);
 
   useEffect(() => {
-    // If user data is in location state and they need to change password, show the modal.
-    if (trainee && trainee.password_is_temporary) {
+    if (traineeState && (!traineeState.last_login || traineeState.last_login === '' || traineeState.last_login === null)) {
       setShowChangePasswordModal(true);
     }
-  }, [trainee]);
+  }, [traineeState]);
 
   useEffect(() => {
     if (contentRefs.phase1.current) {
       setContentHeight(prev => ({
         ...prev,
-        phase1: expandedPhase === 1 ? `${contentRefs.phase1.current.scrollHeight}px` : "0px"
+        phase1: expandedPhases[1] ? `${contentRefs.phase1.current.scrollHeight}px` : "0px"
       }));
     }
-  }, [expandedPhase, contentRefs.phase1]);
+  }, [expandedPhases, contentRefs.phase1]);
 
-  const handleChangePassword = async () => {
-    if (newPasswordChange !== confirmNewPasswordChange) {
-      toast({ variant: "destructive", title: "New passwords do not match." });
+  useEffect(() => {
+    // Fetch real-time trainee data on mount and when empId changes
+    async function fetchTrainee() {
+      if (!empId) return;
+      try {
+        const res = await fetch(`http://localhost:8000/trainees/${empId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setTrainee(data);
+        }
+      } catch (err) {
+        // Optionally handle error
+      }
+      // Fetch tasks for this trainee
+      try {
+        const res = await fetch(`http://localhost:8000/trainees/${empId}/tasks`);
+        if (res.ok) {
+          const data = await res.json();
+          setTasks(data.tasks || []);
+        }
+      } catch (err) {
+        setTasks([]);
+      }
+    }
+    fetchTrainee();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [empId]);
+
+  const handlePasswordChange = async () => {
+    if (!allPwChecks || !passwordsMatch) {
+      setPasswordError("Please match all password requirements.");
       return;
     }
-    if (newPasswordChange.length < 8) {
-      toast({ variant: "destructive", title: "New password must be at least 8 characters long."});
+    if (!traineeState.email) {
+      setPasswordError("Email is missing. Cannot change password.");
       return;
     }
-
+    setPasswordError("");
     setIsChanging(true);
     try {
+      // Debug: log the payload
+      console.log("Sending password change:", {
+        email: traineeState.email,
+        new_password: newPassword
+      });
       const response = await fetch("http://localhost:8000/api/user/change-password", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${jwt}`
+        },
         body: JSON.stringify({
-          email: trainee.email,
-          old_password: oldPassword,
-          new_password: newPasswordChange,
+          email: traineeState.email,
+          new_password: newPassword
         }),
       });
-
       if (response.ok) {
         toast({ title: "✅ Password Changed", description: "Your password has been updated." });
         setShowChangePasswordModal(false);
-        setOldPassword("");
-        setNewPasswordChange("");
-        setConfirmNewPasswordChange("");
+        setNewPassword("");
+        setConfirmPassword("");
+        // Refetch user data from backend
+        const userRes = await fetch(`http://localhost:8000/trainees/email/${traineeState.email}`);
+        if (userRes.ok) {
+          const updatedUser = await userRes.json();
+          setTrainee(updatedUser);
+        }
       } else {
         const errorData = await response.json();
-        toast({ variant: "destructive", title: "Change Failed", description: errorData.detail || "Could not change password." });
+        setPasswordError(Array.isArray(errorData.detail) ? errorData.detail : errorData.detail || "Could not change password.");
       }
     } catch (error) {
-       toast({ variant: "destructive", title: "Connection Error", description: "Could not connect to the server." });
+      setPasswordError("Could not connect to the server.");
     } finally {
       setIsChanging(false);
     }
   };
 
   const handlePhaseClick = (phaseId: number) => {
-    navigate(`/trainee-dashboard/${trainee.empId}/phase/${phaseId}`, {
-      state: { user: trainee }
+    navigate(`/trainee-dashboard/${traineeState.empId}/phase/${phaseId}`, {
+      state: { user: traineeState }
     });
   };
-
-  const upcomingTasks = [
-    { id: 1, title: "Complete JavaScript Fundamentals", due: "Tomorrow", priority: "High" },
-    { id: 2, title: "Submit Database Design Assignment", due: "3 days", priority: "Medium" },
-    { id: 3, title: "Peer Code Review", due: "1 week", priority: "Low" },
-  ];
 
   const trainings = [
     { id: 1, title: "Programming Fundamentals", status: "completed", progress: 100 },
@@ -217,28 +294,26 @@ const TraineeDashboard = () => {
     { id: 4, title: "Version Control (Git)", status: "pending", progress: 0 },
   ];
 
-  const handleExpand = () => {
-    if (!expandedPhase) {
-      setExpandedPhase(1);
-    }
+  const handleExpand = (phaseId: number) => {
+    setExpandedPhases(prev => ({ ...prev, [phaseId]: true }));
   };
 
-  const handleCollapse = (e: React.MouseEvent) => {
+  const handleCollapse = (e: React.MouseEvent, phaseId: number) => {
     e.stopPropagation();
-    setExpandedPhase(null);
+    setExpandedPhases(prev => ({ ...prev, [phaseId]: false }));
   };
 
-  const LockedPhaseCard = () => (
-    <div className="bg-white rounded-lg border border-slate-200 shadow-md opacity-60 min-h-[250px] flex flex-col">
-      <div className="p-6 flex-1 flex flex-col">
+  const LockedPhaseCard = ({ expanded, onExpand, onCollapse, hFull = false }) => (
+    <div className={`bg-white rounded-lg border border-slate-200 shadow-md opacity-60 min-h-[250px] flex flex-col p-6 ${hFull ? 'h-full' : ''}`}>
+      <div>
         <div className="flex items-center gap-2 mb-2">
           <Lock className="h-5 w-5 text-slate-400" />
           <h3 className="text-lg font-medium text-slate-700">Phase 2: Advanced Training</h3>
         </div>
         <p className="text-sm text-slate-500 mb-6">
-          Complete 80% of Phase 1 to unlock (Current: {trainee.score}%)
+          Complete 80% of Phase 1 to unlock (Current: {traineeState.score}%)
         </p>
-        <div className="flex-1 flex items-center justify-center flex-col">
+        <div className="flex items-center justify-center flex-col mt-16">
           <Lock className="h-12 w-12 text-slate-400 mb-4" />
           <p className="text-slate-500">Complete Phase 1 to unlock advanced trainings</p>
         </div>
@@ -246,29 +321,23 @@ const TraineeDashboard = () => {
     </div>
   );
 
-  const UnlockedPhaseCard = () => (
+  const UnlockedPhaseCard = ({ expanded, onExpand, onCollapse }) => (
     <Card
       className={`
         shadow-md border-slate-200 overflow-hidden
         transform transition-all duration-500 ease-in-out
-        ${expandedPhase === 2 
-          ? 'w-full'
-          : 'hover:scale-[1.02] cursor-pointer hover:shadow-xl hover:border-blue-300'
-        }
+        ${expanded ? 'w-full' : 'hover:scale-[1.02] cursor-pointer hover:shadow-xl hover:border-blue-300'}
       `}
-      onClick={() => !expandedPhase && setExpandedPhase(2)}
+      onClick={() => !expanded && onExpand()}
     >
       <CardHeader>
         <div className="flex items-center gap-4">
-          {expandedPhase === 2 && (
+          {expanded && (
             <Button
               variant="ghost"
               size="icon"
               className="hover:bg-slate-100 transition-colors duration-200"
-              onClick={(e) => {
-                e.stopPropagation();
-                setExpandedPhase(null);
-              }}
+              onClick={onCollapse}
             >
               <ArrowLeft className="h-5 w-5" />
             </Button>
@@ -293,7 +362,7 @@ const TraineeDashboard = () => {
           <Progress value={0} className="mb-4" />
         </div>
 
-        {expandedPhase === 2 && (
+        {expanded && (
           <div className="space-y-4 mt-6">
             {phaseTwoTrainings.map((training, index) => (
               <div 
@@ -347,40 +416,83 @@ const TraineeDashboard = () => {
     </Card>
   );
 
-  if (!trainee) {
+  if (!traineeState) {
     return <div>Loading...</div>; // Or a more sophisticated loading spinner
   }
 
   return (
     <>
-      {/* First-time password set modal */}
-      <AlertDialog open={showChangePasswordModal} onOpenChange={setShowChangePasswordModal}>
-        <AlertDialogContent className={`rounded-3xl ${glass} p-8`} style={{ boxShadow: `0 8px 32px 0 ${accent}22` }}>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-xl font-bold text-orange-500">Change Your Password</AlertDialogTitle>
-          </AlertDialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="old-password">Current Password</Label>
-              <Input id="old-password" type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="rounded-full bg-white/80" />
+      <Dialog open={showChangePasswordModal} onOpenChange={setShowChangePasswordModal}>
+        <DialogContent className="rounded-3xl bg-white shadow-2xl border border-white/40 p-10 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold text-orange-500 mb-4 drop-shadow-sm">Set a New Password</DialogTitle>
+            <DialogDescription className="text-gray-500 text-base mb-2">
+              Please choose a strong password. It must be at least 8 characters, include an uppercase letter, a number, and a special character.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div>
+              <Label htmlFor="new-password">New Password</Label>
+              <div className="relative mt-1">
+                <Input
+                  id="new-password"
+                  type={showNewPassword ? "text" : "password"}
+                  value={newPassword}
+                  onChange={e => { setNewPassword(e.target.value); setPasswordError(""); }}
+                  className={`rounded-full bg-white/80 pr-12 ${passwordError ? 'border-red-500' : ''}`}
+                  autoComplete="new-password"
+                />
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500" onClick={() => setShowNewPassword(v => !v)} tabIndex={-1}>
+                  {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
+              </div>
+              <div className="mt-2 space-y-1">
+                {pwChecks.map((c, i) => (
+                  <div key={i} className={`flex items-center gap-2 text-sm ${c.valid ? 'text-green-600' : 'text-gray-400'}`}>
+                    <span className={`inline-block w-3 h-3 rounded-full border ${c.valid ? 'bg-green-500 border-green-500' : 'bg-gray-200 border-gray-300'}`}></span>
+                    {c.label}
+                  </div>
+                ))}
+              </div>
+              {passwordError && Array.isArray(passwordError) ? (
+                <ul className="text-xs text-red-500 mt-1 space-y-1">
+                  {passwordError.map((err, idx) => <li key={idx}>{typeof err === 'string' ? err : (err.msg || JSON.stringify(err))}</li>)}
+                </ul>
+              ) : passwordError ? (
+                <div className="text-xs text-red-500 mt-1">{typeof passwordError === 'string' ? passwordError : JSON.stringify(passwordError)}</div>
+              ) : null}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="new-password-change">New Password</Label>
-              <Input id="new-password-change" type="password" value={newPasswordChange} onChange={(e) => setNewPasswordChange(e.target.value)} className="rounded-full bg-white/80" />
+            <div>
+              <Label htmlFor="confirm-password">Re-enter Password</Label>
+              <div className="relative mt-1">
+                <Input
+                  id="confirm-password"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={e => { setConfirmPassword(e.target.value); setConfirmError(""); }}
+                  className={`rounded-full bg-white/80 pr-12 ${confirmError ? 'border-red-500' : ''}`}
+                  autoComplete="new-password"
+                />
+                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500" onClick={() => setShowConfirmPassword(v => !v)} tabIndex={-1}>
+                  {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                </button>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="confirm-new-password-change">Confirm New Password</Label>
-              <Input id="confirm-new-password-change" type="password" value={confirmNewPasswordChange} onChange={(e) => setConfirmNewPasswordChange(e.target.value)} className="rounded-full bg-white/80" />
+              {confirmPassword && (
+                <div className={`mt-2 text-sm ${passwordsMatch ? 'text-green-600' : 'text-red-500'}`}>{passwordsMatch ? 'Passwords match' : 'Passwords do not match'}</div>
+              )}
             </div>
+            <DialogFooter>
+              <Button
+                className="w-full rounded-full bg-gradient-to-r from-orange-500 to-orange-400 text-white font-semibold shadow-lg hover:from-orange-600 hover:to-orange-500 transition-colors"
+                onClick={handlePasswordChange}
+                disabled={!allPwChecks || !passwordsMatch || isChanging}
+              >
+                {isChanging ? "Changing..." : "Set Password"}
+              </Button>
+            </DialogFooter>
           </div>
-          <AlertDialogFooter>
-            <Button variant="outline" className="rounded-full" onClick={() => setShowChangePasswordModal(false)}>Cancel</Button>
-            <AlertDialogAction className="rounded-full bg-gradient-to-r from-orange-500 to-orange-400 text-white" onClick={handleChangePassword} disabled={isChanging}>
-              {isChanging ? "Changing..." : "Change Password"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        </DialogContent>
+      </Dialog>
 
       <div className="min-h-screen" style={{ background: "linear-gradient(135deg, #f8fafc 0%, #fff7f0 100%)" }}>
         {/* Header */}
@@ -392,25 +504,39 @@ const TraineeDashboard = () => {
               </span>
               <div>
                 <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: accent, letterSpacing: '-0.04em' }}>Mavericks Training</h1>
-                {trainee && <p className="text-base text-gray-500 font-medium">Welcome back, {trainee.name} ({trainee.empId})</p>}
+                {traineeState && <p className="text-base text-gray-500 font-medium">Welcome back, {traineeState.name} ({traineeState.empId})</p>}
               </div>
             </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" className="rounded-full flex items-center gap-2 border-orange-200 text-orange-500 hover:bg-orange-50 hover:text-orange-600 bg-white/80" style={font}>
                   <User className="h-4 w-4" />
-                  <span>{trainee.name}</span>
+                  <span>{traineeState.name}</span>
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setShowChangePasswordModal(true)}>
-                  <KeyRound className="mr-2 h-4 w-4" />
+              <DropdownMenuContent align="end" className="rounded-xl bg-white/80 shadow-lg border border-orange-100 p-2 min-w-[200px]">
+                <DropdownMenuLabel className="text-lg font-bold text-gray-900 mb-2">My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-orange-100" />
+                <DropdownMenuItem
+                  onClick={() => setShowChangePasswordModal(true)}
+                  className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-orange-50 transition-colors text-base text-gray-800 group"
+                >
+                  <KeyRound className="h-5 w-5 text-orange-400 group-hover:text-orange-500 transition" />
                   <span>Change Password</span>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate('/')}> <LogOut className="mr-2 h-4 w-4" /> <span>Logout</span> </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    localStorage.removeItem('empId');
+                    localStorage.removeItem('is_admin');
+                    localStorage.removeItem('admin_name');
+                    navigate('/');
+                  }}
+                  className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-orange-50 transition-colors text-base text-gray-800 group"
+                >
+                  <LogOut className="h-5 w-5 text-orange-400 group-hover:text-orange-500 transition" />
+                  <span>Logout</span>
+                </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -424,28 +550,37 @@ const TraineeDashboard = () => {
                 <Target className="h-7 w-7 text-blue-400" />
                 <span className="text-lg font-semibold text-blue-500">Overall Progress</span>
               </div>
-              <span className="text-3xl font-extrabold mt-2 text-blue-600">{trainee.progress}%</span>
+              <span className="text-3xl font-extrabold mt-2 text-blue-600">{traineeState.progress ?? 0}%</span>
             </div>
             <div className={`rounded-3xl ${glass} p-6 flex flex-col items-center transition-transform hover:scale-105`} style={{ boxShadow: `0 8px 32px 0 #10b98122` }}>
               <div className="flex items-center gap-2 mb-2">
                 <BookOpen className="h-7 w-7 text-emerald-400" />
                 <span className="text-lg font-semibold text-emerald-500">Current Phase</span>
               </div>
-              <span className="text-3xl font-extrabold mt-2 text-emerald-600">Phase {trainee.phase}</span>
+              <span className="text-3xl font-extrabold mt-2 text-emerald-600">Phase {traineeState.phase ?? 1}</span>
             </div>
             <div className={`rounded-3xl ${glass} p-6 flex flex-col items-center transition-transform hover:scale-105`} style={{ boxShadow: `0 8px 32px 0 #a78bfa22` }}>
               <div className="flex items-center gap-2 mb-2">
                 <BarChart3 className="h-7 w-7 text-purple-400" />
                 <span className="text-lg font-semibold text-purple-500">Phase 1 Score</span>
               </div>
-              <span className="text-3xl font-extrabold mt-2 text-purple-600">{trainee.score}%</span>
+              <span className="text-3xl font-extrabold mt-2 text-purple-600">{traineeState.score ?? 0}%</span>
             </div>
             <div className={`rounded-3xl ${glass} p-6 flex flex-col items-center transition-transform hover:scale-105`} style={{ boxShadow: `0 8px 32px 0 #f59e0b22` }}>
               <div className="flex items-center gap-2 mb-2">
                 <Calendar className="h-7 w-7 text-orange-400" />
                 <span className="text-lg font-semibold text-orange-500">Days Remaining</span>
               </div>
-              <span className="text-3xl font-extrabold mt-2" style={{ color: accent2 }}>12</span>
+              <span className="text-3xl font-extrabold mt-2" style={{ color: accent2 }}>
+                {(() => {
+                  const created = traineeState.created_at ? dayjs(traineeState.created_at) : null;
+                  if (!created) return 60;
+                  const now = dayjs();
+                  const daysElapsed = now.diff(created, 'day');
+                  const daysLeft = 60 - daysElapsed;
+                  return daysLeft > 0 ? daysLeft : 0;
+                })()}
+              </span>
             </div>
           </div>
 
@@ -522,28 +657,32 @@ const TraineeDashboard = () => {
                   <span className="text-xl font-bold text-orange-500">Upcoming Tasks</span>
                 </div>
                 <div className="space-y-3">
-                  {upcomingTasks.map((task) => (
-                    <div key={task.id} className="flex items-center justify-between p-3 bg-white/70 rounded-xl shadow-sm">
-                      <div>
-                        <p className="font-medium">{task.title}</p>
-                        <p className="text-sm text-gray-600">Due: {task.due}</p>
+                  {tasks.length === 0 ? (
+                    <div className="text-gray-400 text-lg">No tasks to display.</div>
+                  ) : (
+                    tasks.map((task) => (
+                      <div key={task.id || task._id} className="flex items-center justify-between p-3 bg-white/70 rounded-xl shadow-sm">
+                        <div>
+                          <p className="font-medium">{task.title}</p>
+                          <p className="text-sm text-gray-600">Due: {task.due}</p>
+                        </div>
+                        <Badge 
+                          variant={task.priority === 'High' ? 'destructive' : task.priority === 'Medium' ? 'default' : 'secondary'}
+                        >
+                          {task.priority}
+                        </Badge>
                       </div>
-                      <Badge 
-                        variant={task.priority === 'High' ? 'destructive' : task.priority === 'Medium' ? 'default' : 'secondary'}
-                      >
-                        {task.priority}
-                      </Badge>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             </div>
           )}
           {activeTab === 'training' && (
             <div className="space-y-8">
-              <div className="grid lg:grid-cols-2 gap-8">
+              <div className="grid lg:grid-cols-2 gap-8 items-stretch">
                 {/* Phase 1 Card */}
-                <div className={`rounded-3xl ${glass} p-8 shadow-xl cursor-pointer transition-transform hover:scale-105`} onClick={handleExpand}>
+                <div className={`rounded-3xl ${glass} p-6 shadow-xl cursor-pointer transition-transform hover:scale-105 h-full min-h-[250px]`} onClick={() => handleExpand(1)}>
                   <div className="flex items-center gap-3 mb-4">
                     <CheckCircle className="h-7 w-7 text-emerald-400" />
                     <span className="text-xl font-bold text-emerald-500">Phase 1: Foundation Training</span>
@@ -553,15 +692,15 @@ const TraineeDashboard = () => {
                   </div>
                   <div className="flex justify-between items-center mb-2">
                     <span className="font-medium">Overall Progress</span>
-                    <span className="text-emerald-600 font-semibold">{trainee.score}%</span>
+                    <span className="text-emerald-600 font-semibold">{traineeState.score}%</span>
                   </div>
-                  <Progress value={trainee.score} className="mb-4" />
-                  {expandedPhase === 1 && (
-                    <Button variant="ghost" size="icon" className="hover:bg-orange-50 transition-colors duration-200 mb-4" onClick={handleCollapse}>
+                  <Progress value={traineeState.score} className="mb-4" />
+                  {expandedPhases[1] && (
+                    <Button variant="ghost" size="icon" className="hover:bg-orange-50 transition-colors duration-200 mb-4" onClick={e => handleCollapse(e, 1)}>
                       <ArrowLeft className="h-5 w-5" />
                     </Button>
                   )}
-                  {expandedPhase === 1 && (
+                  {expandedPhases[1] && (
                     <div className="space-y-4 mt-6">
                       {phaseOneTrainings.map((training, index) => (
                         <div 
@@ -601,10 +740,10 @@ const TraineeDashboard = () => {
                   )}
                 </div>
                 {/* Phase 2 Card */}
-                {trainee.score >= 80 ? (
-                  <UnlockedPhaseCard />
+                {traineeState.score >= 80 ? (
+                  <UnlockedPhaseCard expanded={expandedPhases[2]} onExpand={() => handleExpand(2)} onCollapse={e => handleCollapse(e, 2)} />
                 ) : (
-                  <LockedPhaseCard />
+                  <LockedPhaseCard expanded={expandedPhases[2]} onExpand={() => handleExpand(2)} onCollapse={e => handleCollapse(e, 2)} hFull />
                 )}
               </div>
             </div>

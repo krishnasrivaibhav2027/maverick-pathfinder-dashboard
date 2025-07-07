@@ -20,3 +20,5 @@ pymupdf
 aiosmtplib
 email-validator
 pydantic-settings>=2.10.1
+python-jose[cryptography]
+passlib[bcrypt]

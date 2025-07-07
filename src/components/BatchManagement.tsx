@@ -72,6 +72,22 @@ const BatchManagement = () => {
   const [selectedBatchGroup, setSelectedBatchGroup] = useState<Batch[] | null>(null);
   const [selectedTrainee, setSelectedTrainee] = useState<Trainee | null>(null);
   const [batchActionStatus, setBatchActionStatus] = useState<{ [batchId: string]: 'idle' | 'loading' | 'success' | 'error' }>({});
+  const [accountStatus, setAccountStatus] = useState<{ [email: string]: { status: string; empId?: string; password?: string } }>({});
+
+  // Add a fetchBatches function for reuse
+  const fetchBatches = async (phase = selectedPhase) => {
+    if (phase) {
+      const res = await fetch(`http://localhost:8000/batches/phase/${phase}`);
+      const data = await res.json();
+      setBatches(data);
+    } else {
+      setBatches([]);
+      setSelectedBatch(null);
+      setSkillGroups([]);
+      setSelectedSkill(null);
+      setTrainees([]);
+    }
+  };
 
   // Fetch phases on mount
   useEffect(() => {
@@ -88,19 +104,10 @@ const BatchManagement = () => {
       });
   }, []);
 
-  // Fetch batches for selected phase
+  // Replace useEffect for batches with this
   useEffect(() => {
-    if (selectedPhase) {
-      fetch(`http://localhost:8000/batches/phase/${selectedPhase}`)
-        .then(res => res.json())
-        .then((data: Batch[]) => setBatches(data));
-    } else {
-      setBatches([]);
-      setSelectedBatch(null);
-      setSkillGroups([]);
-      setSelectedSkill(null);
-      setTrainees([]);
-    }
+    fetchBatches();
+    // eslint-disable-next-line
   }, [selectedPhase]);
 
   // Fetch skill groups for selected batch
@@ -131,6 +138,9 @@ const BatchManagement = () => {
   if (!selectedPhase) {
     return (
       <div className="w-full h-full flex flex-col items-start justify-start p-8">
+        <div className="flex flex-row gap-6 mb-4">
+          <Button onClick={() => fetchBatches()} variant="outline">Refresh</Button>
+        </div>
         <div className="flex flex-row gap-6">
           {allPhases.map(phase => (
             <button
@@ -160,6 +170,9 @@ const BatchManagement = () => {
     const batchNumbers: number[] = Object.keys(batchMap).map((k: string) => Number(k)).sort((a, b) => a - b);
     return (
       <div className="w-full h-full flex flex-col items-start justify-start p-8">
+        <div className="flex flex-row gap-6 mb-4">
+          <Button onClick={() => fetchBatches()} variant="outline">Refresh</Button>
+        </div>
         <button onClick={() => setSelectedPhase(null)} className="w-12 h-12 flex items-center justify-center rounded-full bg-white/70 shadow-md hover:shadow-lg active:shadow-inner transition-all border border-orange-100 mb-6" style={{ boxShadow: '0 2px 8px 0 #ff7c2b22', backdropFilter: 'blur(4px)' }} aria-label="Back">
           <ArrowLeft className="h-7 w-7 text-orange-400" />
         </button>
@@ -259,6 +272,7 @@ const BatchManagement = () => {
                             }
                           }
                         }
+                        fetchBatches(); // Refresh batch data
                       } else {
                         setBatchActionStatus(s => ({ ...s, [batch._id]: 'error' }));
                       }
@@ -341,6 +355,53 @@ const BatchManagement = () => {
                   </td>
                   <td className="py-3 px-4 align-middle text-center" style={{width: '110px'}}>
                     <button className="text-orange-500 font-bold hover:underline" onClick={() => setSelectedTrainee(trainee)}>View Details</button>
+                    <div className="mt-2">
+                      {trainee.empId || accountStatus[trainee.email]?.status === 'success' ? (
+                        <span className="text-green-600 font-semibold">Account Created</span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          className="w-full"
+                          disabled={accountStatus[trainee.email]?.status === 'loading'}
+                          onClick={async () => {
+                            setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'loading' } }));
+                            try {
+                              const res = await fetch('http://localhost:8000/onboarding/create-account-for-trainee', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ email: trainee.email, batch_id: selectedBatch?._id })
+                              });
+                              const data = await res.json();
+                              if (res.ok && data.status === 'success') {
+                                setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'success', empId: data.empId, password: data.password } }));
+                                setTrainees(ts => ts.map(t => t.email === trainee.email ? { ...t, empId: data.empId } : t));
+                                toast({ title: 'Account Created', description: `EmpID: ${data.empId}` });
+                                fetchBatches(); // Refresh batch data
+                              } else if (data.status === 'already_created') {
+                                setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'success', empId: data.empId } }));
+                                setTrainees(ts => ts.map(t => t.email === trainee.email ? { ...t, empId: data.empId } : t));
+                                toast({ title: 'Already Created', description: data.message });
+                                fetchBatches(); // Refresh batch data
+                              } else {
+                                setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'error' } }));
+                                toast({ title: 'Error', description: data.detail || 'Unknown error' });
+                              }
+                            } catch {
+                              setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'error' } }));
+                              toast({ title: 'Error', description: 'Could not connect to server.' });
+                            }
+                          }}
+                        >
+                          {accountStatus[trainee.email]?.status === 'loading' ? 'Creating...' : 'Create Account'}
+                        </Button>
+                      )}
+                      {accountStatus[trainee.email]?.status === 'success' && accountStatus[trainee.email]?.empId && accountStatus[trainee.email]?.password && (
+                        <div className="text-xs text-green-700 mt-1">
+                          <div>EmpID: <b>{accountStatus[trainee.email].empId}</b></div>
+                          <div>Temp PW: <b>{accountStatus[trainee.email].password}</b></div>
+                        </div>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
