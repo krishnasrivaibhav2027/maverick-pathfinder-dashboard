@@ -11,6 +11,7 @@ import PhaseTrainings from "./pages/PhaseTrainings";
 import ActiveBatches from "./pages/ActiveBatches";
 import NextBatchOverflow from "./pages/NextBatchOverflow";
 
+
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
