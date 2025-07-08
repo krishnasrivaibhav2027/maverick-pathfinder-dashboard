@@ -215,7 +215,6 @@ const TraineeDashboard = () => {
       isMounted = false;
       clearInterval(intervalId);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [traineeState]);
 
   useEffect(() => {
@@ -258,7 +257,6 @@ const TraineeDashboard = () => {
       }
     }
     fetchTrainee();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [empId]);
 
   useEffect(() => {
@@ -472,7 +470,7 @@ const TraineeDashboard = () => {
   }
 
   return (
-    <TraineeLayout traineeState={traineeState} setShowChangePasswordModal={setShowChangePasswordModal}>
+    <TraineeLayout>
       <div className="min-h-screen" style={{ background: "linear-gradient(135deg, #f8fafc 0%, #fff7f0 100%)" }}>
         <div className="container mx-auto px-6 py-8">
           {/* Quick Stats */}
@@ -657,6 +655,7 @@ const TraineeDashboard = () => {
                                 ref={el => courseRefs.current[course.id] = el}
                                 className="p-0 rounded-xl border border-orange-200 bg-white/90 shadow transition-all duration-200 cursor-pointer min-h-[72px] hover:bg-orange-50 hover:shadow-2xl hover:scale-105 hover:-translate-y-1 will-change-transform"
                                 tabIndex={0}
+                                whileTap={{ scale: 0.97, boxShadow: '0 8px 32px 0 #f59e4244', backgroundColor: '#fff7f0' }}
                                 onClick={() => navigate(`/training/course/${course.id}`, { state: { courseId: course.id, user: traineeState } })}
                                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate(`/training/course/${course.id}`, { state: { courseId: course.id, user: traineeState } }); }}
                                 aria-label={`Open ${course.title}`}
