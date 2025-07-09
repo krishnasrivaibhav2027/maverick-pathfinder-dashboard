@@ -15,6 +15,9 @@ class Trainee(BaseModel):
     password_is_temporary: bool = Field(default=True)
     created_at: Optional[str] = None
     last_login: Optional[str] = None
+    current_course_id: Optional[str] = None
+    completed_courses: Optional[list[str]] = Field(default_factory=list, description="List of completed course IDs")
+    progress: Optional[list[dict]] = Field(default_factory=list, description="List of course progress objects: {course_id, completed_subcourses}")
 
 class Admin(BaseModel):
     id: Optional[int] = Field(None, description="Unique identifier")
@@ -112,3 +115,14 @@ class Activity(BaseModel):
     details: Optional[str] = None
     timestamp: str  # ISO format
     meta: Optional[Dict[str, Any]] = None
+
+class Subcourse(BaseModel):
+    subcourse_id: str
+    title: str
+    description: Optional[str] = None
+
+class Course(BaseModel):
+    course_id: str
+    title: str
+    description: Optional[str] = None
+    subcourses: list[Subcourse]

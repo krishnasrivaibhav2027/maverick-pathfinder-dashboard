@@ -90,60 +90,8 @@ const TraineeDashboard = () => {
   const [showQuizModal, setShowQuizModal] = useState(false);
   const [selectedSubcourse, setSelectedSubcourse] = useState(null);
 
-  // Mock subcourses for each course
-  const subcoursesMap = {
-    1: [
-      { id: 101, title: 'Variables & Data Types', status: 'completed' },
-      { id: 102, title: 'Control Structures', status: 'unlocked' },
-      { id: 103, title: 'Functions & Modules', status: 'locked' },
-    ],
-    2: [
-      { id: 201, title: 'Classes & Objects', status: 'locked' },
-      { id: 202, title: 'Inheritance & Polymorphism', status: 'locked' },
-    ],
-    3: [
-      { id: 301, title: 'Git Basics', status: 'locked' },
-      { id: 302, title: 'Branching & Merging', status: 'locked' },
-    ],
-    // ...add for other courses
-  };
-
-  // Dynamically generate Phase 1 trainings based on trainee skill
-  function getPhaseOneTrainings(skill: string) {
-    const common = [
-      { id: 1, title: "Programming Fundamentals", status: "completed", progress: 100 },
-      { id: 2, title: "Object-Oriented Programming (OOP) Concepts", status: "pending", progress: 0 },
-      { id: 3, title: "Version Control with Git & GitHub", status: "pending", progress: 0 },
-      { id: 4, title: "Database Fundamentals", status: "pending", progress: 0 },
-      { id: 5, title: "Software Development Lifecycle & Agile Basics", status: "pending", progress: 0 },
-      { id: 6, title: "Basic Data Structures & Algorithms", status: "pending", progress: 0 },
-      { id: 7, title: "Debugging & Problem Solving", status: "pending", progress: 0 },
-    ];
-    const python = [
-      { id: 101, title: "Python Programming Essentials", status: "pending", progress: 0 },
-      { id: 102, title: "Intro to Python Libraries (NumPy, Pandas, Requests, Matplotlib)", status: "pending", progress: 0 },
-    ];
-    const java = [
-      { id: 201, title: "Java Programming Essentials", status: "pending", progress: 0 },
-      { id: 202, title: "Intro to Java Libraries (Standard Library, JUnit)", status: "pending", progress: 0 },
-    ];
-    const dotnet = [
-      { id: 301, title: "C# Programming Essentials", status: "pending", progress: 0 },
-      { id: 302, title: "Intro to .NET Libraries (LINQ, File I/O, NUnit/xUnit)", status: "pending", progress: 0 },
-    ];
-    if (skill?.toLowerCase().includes("python")) return [...common, ...python];
-    if (skill?.toLowerCase().includes("java")) return [...common, ...java];
-    if (skill?.toLowerCase().includes(".net")) return [...common, ...dotnet];
-    return common;
-  }
-  const phaseOneTrainings = getPhaseOneTrainings(traineeState.specialization);
-
-  const phaseTwoTrainings = [
-    { id: 5, title: "Advanced Backend Development", status: "pending", progress: 0 },
-    { id: 6, title: "Cloud Architecture", status: "pending", progress: 0 },
-    { id: 7, title: "System Design", status: "pending", progress: 0 },
-    { id: 8, title: "DevOps and CI/CD", status: "pending", progress: 0 }
-  ];
+  const [courses, setCourses] = useState([]);
+  const [progress, setProgress] = useState<{ course_id: string, completed_subcourses: string[] }[]>([]);
 
   const [progressData, setProgressData] = useState([]);
   const [skillsData, setSkillsData] = useState([]);
@@ -163,6 +111,37 @@ const TraineeDashboard = () => {
 
   // Add refs for course blocks
   const courseRefs = useRef({});
+
+  useEffect(() => {
+    async function fetchCourses() {
+      try {
+        const res = await fetch("http://localhost:8000/courses");
+        if (res.ok) {
+          const data = await res.json();
+          setCourses(data.courses || []);
+        }
+      } catch (err) {
+        // Optionally handle error
+      }
+    }
+    fetchCourses();
+  }, []);
+
+  useEffect(() => {
+    async function fetchProgress() {
+      if (!empId) return;
+      try {
+        const res = await fetch(`http://localhost:8000/trainees/${empId}/progress`);
+        if (res.ok) {
+          const data = await res.json();
+          setProgress(data.progress || []);
+        }
+      } catch (err) {
+        // Optionally handle error
+      }
+    }
+    fetchProgress();
+  }, [empId]);
 
   useEffect(() => {
     let isMounted = true;
@@ -218,7 +197,11 @@ const TraineeDashboard = () => {
   }, [traineeState]);
 
   useEffect(() => {
-    if (traineeState && (!traineeState.last_login || traineeState.last_login === '' || traineeState.last_login === null)) {
+    if (
+      traineeState &&
+      (traineeState.password_is_temporary === true ||
+        traineeState.password_is_temporary === undefined && (!traineeState.last_login || traineeState.last_login === '' || traineeState.last_login === null))
+    ) {
       setShowChangePasswordModal(true);
     }
   }, [traineeState]);
@@ -486,6 +469,22 @@ const TraineeDashboard = () => {
     </Card>
   );
 
+  async function handleCompleteSubcourse(course_id: string, subcourse_id: string) {
+    try {
+      const res = await fetch(`http://localhost:8000/trainees/${empId}/progress/complete-subcourse`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ course_id, subcourse_id })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setProgress(data.progress || []);
+      }
+    } catch (err) {
+      // Optionally handle error
+    }
+  }
+
   if (!traineeState) {
     return <div>Loading...</div>; // Or a more sophisticated loading spinner
   }
@@ -666,33 +665,28 @@ const TraineeDashboard = () => {
                     <div className="space-y-4 mt-6 w-full p-4">
                       <div className="flex flex-col gap-4 w-full">
                         <AnimatePresence initial={false}>
-                          {phaseOneTrainings.map((course, index) => {
-                            const subcourses = subcoursesMap[course.id] || [];
-                            const completedCount = subcourses.filter(s => s.status === 'completed').length;
+                          {courses.map((course, index) => {
+                            const completedCount = progress.find(p => p.course_id === String(course.course_id))?.completed_subcourses.length || 0;
+                            const total = course.subcourses.length;
                             return (
                               <motion.div
-                                key={course.id}
-                                layoutId={`course-block-${course.id}`}
-                                ref={el => courseRefs.current[course.id] = el}
+                                key={course.course_id}
+                                layoutId={`course-block-${course.course_id}`}
+                                ref={el => courseRefs.current[course.course_id] = el}
                                 className="p-0 rounded-xl border border-orange-200 bg-white/90 shadow transition-all duration-200 cursor-pointer min-h-[72px] hover:bg-orange-50 hover:shadow-2xl hover:scale-105 hover:-translate-y-1 will-change-transform"
                                 tabIndex={0}
                                 whileTap={{ scale: 0.97, boxShadow: '0 8px 32px 0 #f59e4244', backgroundColor: '#fff7f0' }}
-                                onClick={() => navigate(`/training/course/${course.id}`, { state: { courseId: course.id, user: traineeState } })}
-                                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate(`/training/course/${course.id}`, { state: { courseId: course.id, user: traineeState } }); }}
+                                onClick={() => navigate(`/training/course/${course.course_id}`, { state: { courseId: course.course_id, user: traineeState } })}
+                                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate(`/training/course/${course.course_id}`, { state: { courseId: course.course_id, user: traineeState } }); }}
                                 aria-label={`Open ${course.title}`}
                               >
                                 <div className="flex items-center gap-3 justify-between px-6 py-4 select-none rounded-xl focus:outline-none">
                                   <div className="flex items-center gap-3">
-                                    {course.status === "completed" ? (
-                                      <CheckCircle className="h-6 w-6 text-green-500" />
-                                    ) : (
-                                      <Clock className="h-6 w-6 text-blue-500" />
-                                    )}
                                     <h3 className="text-lg font-semibold group-hover:text-orange-600 transition-colors duration-300">
                                       {course.title}
                                     </h3>
                                     <span className="ml-3 text-xs bg-orange-100 text-orange-700 rounded-full px-3 py-0.5 font-semibold">
-                                      {completedCount}/{subcourses.length} completed
+                                      {completedCount}/{total} completed
                                     </span>
                                   </div>
                                 </div>
@@ -801,12 +795,96 @@ const TraineeDashboard = () => {
             <DialogHeader>
               <DialogTitle>Quiz/Task: {selectedSubcourse.title}</DialogTitle>
               <DialogDescription>
-                Course: {phaseOneTrainings.find(c => (subcoursesMap[c.id] || []).some(s => s.id === selectedSubcourse.id))?.title}
+                Course: {courses.find(c => c.subcourses.some(s => s.id === selectedSubcourse.id))?.title}
               </DialogDescription>
             </DialogHeader>
             <div className="text-gray-600">Quiz/Task content goes here. (To be implemented in next step.)</div>
             <DialogFooter>
               <Button onClick={() => setShowQuizModal(false)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      {/* Change Password Modal for first-time login */}
+      {showChangePasswordModal && (
+        <Dialog open={showChangePasswordModal} onOpenChange={setShowChangePasswordModal}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Set Your Password</DialogTitle>
+              <DialogDescription>
+                Please set a new password to continue. Your temporary password must be changed before you can use the dashboard.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              {/* New Password Field with requirements and show/hide button inside input */}
+              <div>
+                <Label htmlFor="new-password">New Password</Label>
+                <div className="relative">
+                  <Input
+                    id="new-password"
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    autoComplete="new-password"
+                    className="mt-1 pr-12"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500 focus:outline-none"
+                    tabIndex={-1}
+                    aria-label={showNewPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowNewPassword(v => !v)}
+                  >
+                    {showNewPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+                {/* Password requirements directly under new password input */}
+                <div className="space-y-1 mt-2">
+                  {pwChecks.map((c, i) => (
+                    <div key={i} className={`text-sm ${c.valid ? 'text-green-600' : 'text-gray-400'}`}>• {c.label}</div>
+                  ))}
+                </div>
+              </div>
+              {/* Confirm Password Field with show/hide button inside input */}
+              <div>
+                <Label htmlFor="confirm-password">Confirm Password</Label>
+                <div className="relative">
+                  <Input
+                    id="confirm-password"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    autoComplete="new-password"
+                    className="mt-1 pr-12"
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-orange-500 focus:outline-none"
+                    tabIndex={-1}
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    onClick={() => setShowConfirmPassword(v => !v)}
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                  </button>
+                </div>
+                {/* Real-time password match feedback */}
+                {confirmPassword && newPassword && (
+                  <div className={`text-sm mt-2 ${confirmPassword === newPassword ? 'text-green-600' : 'text-red-600'}`}
+                  >
+                    {confirmPassword === newPassword ? 'Passwords match' : 'Passwords do not match'}
+                  </div>
+                )}
+              </div>
+              {/* Error messages */}
+              <div className="space-y-1">
+                {passwordError && <div className="text-red-600 text-sm">{passwordError}</div>}
+                {confirmError && <div className="text-red-600 text-sm">{confirmError}</div>}
+              </div>
+            </div>
+            <DialogFooter>
+              <Button onClick={handlePasswordChange} disabled={isChanging || !allPwChecks || !passwordsMatch}>
+                {isChanging ? 'Changing...' : 'Set Password'}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

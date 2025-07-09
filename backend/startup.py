@@ -8,6 +8,7 @@ import asyncio
 import sys
 import os
 from pathlib import Path
+from motor.motor_asyncio import AsyncIOMotorClient
 
 # Add the backend directory to Python path
 backend_dir = Path(__file__).parent
@@ -116,6 +117,14 @@ async def initialize_database():
     except Exception as e:
         print(f"❌ Error initializing database: {e}")
 
+async def migrate_completed_subcourses():
+    client = AsyncIOMotorClient('mongodb://localhost:27017')
+    db = client['maverick']  # Change to your actual DB name if different
+    trainees = db['trainees']
+    async for trainee in trainees.find({"completed_subcourses": {"$exists": False}}):
+        await trainees.update_one({"_id": trainee["_id"]}, {"$set": {"completed_subcourses": []}})
+    print("Migration complete: ensured all trainees have completed_subcourses field.")
+
 async def main():
     """Main initialization function"""
     print("🚀 Maverick Pathfinder Dashboard Backend Initialization")
@@ -130,6 +139,9 @@ async def main():
         
         # Create sample admin
         await create_sample_admin()
+        
+        # Migrate completed subcourses
+        await migrate_completed_subcourses()
         
         print("\n🎯 Backend is ready to start!")
         print("💡 Run 'python -m uvicorn main:app --reload --host 0.0.0.0 --port 8000' to start the server")

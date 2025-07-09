@@ -1146,18 +1146,44 @@ async def create_account_for_trainee(payload: dict = Body(...)):
     else:
         raise HTTPException(status_code=500, detail="Failed to create trainee account.")
 
-@app.get("/trainees/{emp_id}/tasks")
-async def get_trainee_tasks(emp_id: str):
-    """Get all tasks assigned to a trainee by empId"""
-    try:
-        tasks = []
-        cursor = db["tasks"].find({"assignedTo": emp_id})
-        async for task in cursor:
-            task["_id"] = str(task["_id"])
-            tasks.append(task)
-        return {"tasks": tasks}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching tasks: {str(e)}")
+@app.get("/trainees/{emp_id}/progress")
+async def get_trainee_progress(emp_id: str):
+    """Get the progress array for a trainee (list of {course_id, completed_subcourses})"""
+    trainee = await db["trainees"].find_one({"empId": emp_id})
+    if not trainee:
+        raise HTTPException(status_code=404, detail="Trainee not found")
+    return {"progress": trainee.get("progress", [])}
+
+@app.post("/trainees/{emp_id}/progress/complete-subcourse")
+async def complete_subcourse_progress(emp_id: str, data: dict):
+    """Mark a subcourse as completed for a trainee in a specific course."""
+    course_id = data.get("course_id")
+    subcourse_id = data.get("subcourse_id")
+    if not course_id or not subcourse_id:
+        raise HTTPException(status_code=400, detail="Missing course_id or subcourse_id")
+    trainee = await db["trainees"].find_one({"empId": emp_id})
+    if not trainee:
+        raise HTTPException(status_code=404, detail="Trainee not found")
+    progress = trainee.get("progress", [])
+    found = False
+    for entry in progress:
+        if entry["course_id"] == course_id:
+            if subcourse_id not in entry.get("completed_subcourses", []):
+                entry.setdefault("completed_subcourses", []).append(subcourse_id)
+            found = True
+            break
+    if not found:
+        progress.append({"course_id": course_id, "completed_subcourses": [subcourse_id]})
+    await db["trainees"].update_one({"empId": emp_id}, {"$set": {"progress": progress}})
+    return {"status": "success", "progress": progress}
+
+@app.get("/courses")
+async def get_courses():
+    """Return all courses and their subcourses from the database."""
+    courses = await db["courses"].find({}).to_list(length=100)
+    for course in courses:
+        course["_id"] = str(course["_id"])
+    return {"courses": courses}
 
 app.include_router(router)
 
