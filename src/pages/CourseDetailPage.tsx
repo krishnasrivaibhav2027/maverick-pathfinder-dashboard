@@ -1,5 +1,5 @@
 import React from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -95,15 +95,28 @@ const subcourseVariants: Variants = {
 export default function CourseDetailPage() {
   const { courseId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const user = location.state?.user; // Get user from location state
   const course = phaseOneTrainings.find(c => c.id === courseId);
   const subcourses = subcoursesMap[courseId as string] || [];
+
+  const handleBack = () => {
+    if (user && user.empId && courseId) {
+      navigate(`/trainee-dashboard/${user.empId}`, {
+        state: { user, courseIdToFocus: courseId, previousPage: 'courseDetail' },
+      });
+    } else {
+      // Fallback if user or courseId is somehow missing
+      navigate(-1);
+    }
+  };
 
   if (!course) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-2">Course Not Found</h2>
-          <Button onClick={() => navigate(-1)}>Back</Button>
+          <Button onClick={handleBack}>Back</Button>
         </div>
       </div>
     );
@@ -116,7 +129,7 @@ export default function CourseDetailPage() {
           variant="outline"
           className="mb-6 flex items-center gap-2 rounded-full px-5 py-2 font-semibold border-orange-200 text-orange-500 hover:bg-orange-50 hover:text-orange-600 bg-white/80"
           style={font}
-          onClick={() => navigate(-1)}
+          onClick={handleBack}
         >
           <ArrowLeft className="h-4 w-4" /> Back
         </Button>

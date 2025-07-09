@@ -266,13 +266,34 @@ const TraineeDashboard = () => {
   }, [traineeState]);
 
   useEffect(() => {
-    if (location.state?.courseId && courseRefs.current[location.state.courseId]) {
-      // Scroll to the course block after a short delay to allow rendering
-      setTimeout(() => {
-        courseRefs.current[location.state.courseId].scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 100);
+    const { courseIdToFocus, previousPage, user: navUser } = location.state || {};
+
+    if (navUser) {
+      // If user object is passed in navigation state, update traineeState
+      // This is important if the dashboard was loaded directly without full state initially
+      setTrainee(prevTrainee => ({ ...prevTrainee, ...navUser }));
     }
-  }, [location.state?.courseId]);
+
+    if (previousPage === 'courseDetail' && courseIdToFocus) {
+      setActiveTab('training');
+
+      // Assuming all courses for now are in Phase 1.
+      // A more robust solution would check which phase the courseIdToFocus belongs to.
+      const phaseIdToExpand = 1; // Or determine this dynamically
+      setExpandedPhases(prev => ({ ...prev, [phaseIdToExpand]: true }));
+
+      // Scroll to the course block
+      // The timeout helps ensure the element is rendered and phase is expanded
+      setTimeout(() => {
+        const numericCourseId = parseInt(courseIdToFocus, 10);
+        if (courseRefs.current[numericCourseId]) {
+          courseRefs.current[numericCourseId].scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+        // Clean up navigation state to prevent re-triggering on unrelated re-renders
+        navigate(location.pathname, { replace: true, state: { ...location.state, courseIdToFocus: null, previousPage: null } });
+      }, 150); // Slightly increased delay to allow for tab switch and phase expansion
+    }
+  }, [location.state, navigate]); // Add navigate to dependency array
 
   const handlePasswordChange = async () => {
     if (!allPwChecks || !passwordsMatch) {
