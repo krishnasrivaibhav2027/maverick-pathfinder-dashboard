@@ -37,10 +37,14 @@ export default function CourseDetailPage() {
     fetchCourses();
   }, []);
 
-  const { courseId } = useParams();
+  const { courseId: courseIdString } = useParams(); // Rename to avoid confusion
   const navigate = useNavigate();
   const location = useLocation();
   const user = location.state?.user;
+
+  // Parse courseIdString to an integer
+  const courseId = courseIdString ? parseInt(courseIdString, 10) : undefined;
+
   const course = courses.find(c => c.course_id === courseId);
   const subcourses = course ? course.subcourses : [];
 
