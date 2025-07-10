@@ -58,6 +58,9 @@ const glass = "bg-white/60 backdrop-blur-md shadow-2xl border border-white/30";
 const font = { fontFamily: 'Inter, ui-rounded, system-ui, sans-serif' };
 
 const TraineeDashboard = () => {
+  // Define phaseTwoTrainings as an empty array to prevent map errors if not populated
+  const phaseTwoTrainings = [];
+
   const navigate = useNavigate();
   const { empId } = useParams();
   const location = useLocation();
@@ -275,12 +278,20 @@ const TraineeDashboard = () => {
       // Scroll to the course block
       // The timeout helps ensure the element is rendered and phase is expanded
       setTimeout(() => {
-        const numericCourseId = parseInt(courseIdToFocus, 10);
-        if (courseRefs.current[numericCourseId]) {
-          courseRefs.current[numericCourseId].scrollIntoView({ behavior: "smooth", block: "center" });
+        if (typeof courseIdToFocus === 'string' && courseIdToFocus.trim() !== '') {
+          const numericCourseId = parseInt(courseIdToFocus, 10);
+          // Ensure numericCourseId is a valid number and the ref exists
+          if (!isNaN(numericCourseId) && courseRefs.current[numericCourseId]) {
+            courseRefs.current[numericCourseId].scrollIntoView({ behavior: "smooth", block: "center" });
+          } else {
+            console.warn(`Course ref not found for courseIdToFocus: ${courseIdToFocus} (parsed as ${numericCourseId})`);
+          }
         }
         // Clean up navigation state to prevent re-triggering on unrelated re-renders
-        navigate(location.pathname, { replace: true, state: { ...location.state, courseIdToFocus: null, previousPage: null } });
+        // Only update state if it needs cleaning to avoid unnecessary re-renders from navigate
+        if (location.state?.courseIdToFocus || location.state?.previousPage) {
+          navigate(location.pathname, { replace: true, state: { ...location.state, courseIdToFocus: null, previousPage: null } });
+        }
       }, 150); // Slightly increased delay to allow for tab switch and phase expansion
     }
   }, [location.state, location.pathname, navigate]); // Add location.pathname to dependency array
