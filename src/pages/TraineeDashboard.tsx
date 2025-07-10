@@ -58,9 +58,6 @@ const glass = "bg-white/60 backdrop-blur-md shadow-2xl border border-white/30";
 const font = { fontFamily: 'Inter, ui-rounded, system-ui, sans-serif' };
 
 const TraineeDashboard = () => {
-  // Define phaseTwoTrainings as an empty array to prevent map errors if not populated
-  const phaseTwoTrainings = [];
-
   const navigate = useNavigate();
   const { empId } = useParams();
   const location = useLocation();
