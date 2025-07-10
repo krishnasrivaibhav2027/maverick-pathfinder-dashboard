@@ -50,29 +50,26 @@ export default function CourseDetailPage() {
   const location = useLocation();
   const user = location.state?.user;
 
-  // Parse courseIdString to an integer
-  const courseId = useMemo(() => {
-    return courseIdString ? parseInt(courseIdString, 10) : undefined;
-  }, [courseIdString]);
+  // courseIdString is the ID from the URL, always a string.
+  // No parsing needed if we compare string to string.
 
   const course = useMemo(() => {
-    if (!courseId || courses.length === 0) {
+    if (!courseIdString || courses.length === 0) {
       return undefined;
     }
-    return courses.find(c => c.course_id === courseId);
-  }, [courses, courseId]);
+    // Compare courseIdString directly with stringified c.course_id
+    return courses.find(c => String(c.course_id) === courseIdString);
+  }, [courses, courseIdString]);
 
   const subcourses = useMemo(() => {
     return course ? course.subcourses : [];
   }, [course]);
 
   const handleBack = () => {
-    // Use courseIdFromParams (string) for navigation state if original string ID is preferred for focus logic
-    // Or use the parsed courseId (number) if that's what the dashboard expects
-    const idForFocus = courseIdString || courseId?.toString();
-    if (user && user.empId && idForFocus) {
+    // courseIdString is appropriate here for navigation state for focusing
+    if (user && user.empId && courseIdString) {
       navigate(`/trainee-dashboard/${user.empId}`, {
-        state: { user, courseIdToFocus: idForFocus, previousPage: 'courseDetail' },
+        state: { user, courseIdToFocus: courseIdString, previousPage: 'courseDetail' },
       });
     } else {
       // Fallback if user or courseId is somehow missing
