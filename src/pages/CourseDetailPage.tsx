@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,17 +21,25 @@ const subcourseVariants: Variants = {
 
 export default function CourseDetailPage() {
   const [courses, setCourses] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     async function fetchCourses() {
+      setIsLoading(true);
       try {
         const res = await fetch("http://localhost:8000/courses");
         if (res.ok) {
           const data = await res.json();
           setCourses(data.courses || []);
+        } else {
+          console.error("Failed to fetch courses: Server responded with status", res.status);
+          setCourses([]);
         }
       } catch (err) {
-        // Optionally handle error
+        console.error("Failed to fetch courses:", err);
+        setCourses([]);
+      } finally {
+        setIsLoading(false);
       }
     }
     fetchCourses();
@@ -43,15 +51,28 @@ export default function CourseDetailPage() {
   const user = location.state?.user;
 
   // Parse courseIdString to an integer
-  const courseId = courseIdString ? parseInt(courseIdString, 10) : undefined;
+  const courseId = useMemo(() => {
+    return courseIdString ? parseInt(courseIdString, 10) : undefined;
+  }, [courseIdString]);
 
-  const course = courses.find(c => c.course_id === courseId);
-  const subcourses = course ? course.subcourses : [];
+  const course = useMemo(() => {
+    if (!courseId || courses.length === 0) {
+      return undefined;
+    }
+    return courses.find(c => c.course_id === courseId);
+  }, [courses, courseId]);
+
+  const subcourses = useMemo(() => {
+    return course ? course.subcourses : [];
+  }, [course]);
 
   const handleBack = () => {
-    if (user && user.empId && courseId) {
+    // Use courseIdFromParams (string) for navigation state if original string ID is preferred for focus logic
+    // Or use the parsed courseId (number) if that's what the dashboard expects
+    const idForFocus = courseIdString || courseId?.toString();
+    if (user && user.empId && idForFocus) {
       navigate(`/trainee-dashboard/${user.empId}`, {
-        state: { user, courseIdToFocus: courseId, previousPage: 'courseDetail' },
+        state: { user, courseIdToFocus: idForFocus, previousPage: 'courseDetail' },
       });
     } else {
       // Fallback if user or courseId is somehow missing
@@ -59,12 +80,24 @@ export default function CourseDetailPage() {
     }
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          {/* You can replace this with a more sophisticated spinner component if available */}
+          <h2 className="text-2xl font-bold mb-2">Loading course details...</h2>
+        </div>
+      </div>
+    );
+  }
+
   if (!course) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-2">Course Not Found</h2>
-          <Button onClick={handleBack}>Back</Button>
+          <p className="text-gray-600 mb-4">The course you are looking for does not exist or could not be loaded.</p>
+          <Button onClick={handleBack}>Back to Dashboard</Button>
         </div>
       </div>
     );
