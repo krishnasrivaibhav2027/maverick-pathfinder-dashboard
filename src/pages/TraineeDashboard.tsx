@@ -112,6 +112,13 @@ const TraineeDashboard = () => {
   // Add refs for course blocks
   const courseRefs = useRef({});
 
+  // Move this definition just before UnlockedPhaseCard
+  const phaseTwoTrainings = [
+    { id: 201, title: "Advanced Programming", status: "pending", progress: 0 },
+    { id: 202, title: "System Design", status: "pending", progress: 0 },
+    { id: 203, title: "Cloud Fundamentals", status: "pending", progress: 0 },
+  ];
+
   useEffect(() => {
     async function fetchCourses() {
       try {
@@ -276,7 +283,7 @@ const TraineeDashboard = () => {
         navigate(location.pathname, { replace: true, state: { ...location.state, courseIdToFocus: null, previousPage: null } });
       }, 150); // Slightly increased delay to allow for tab switch and phase expansion
     }
-  }, [location.state, navigate]); // Add navigate to dependency array
+  }, [location.state, location.pathname, navigate]); // Add location.pathname to dependency array
 
   const handlePasswordChange = async () => {
     if (!allPwChecks || !passwordsMatch) {
