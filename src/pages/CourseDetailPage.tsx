@@ -133,7 +133,7 @@ export default function CourseDetailPage() {
               >
                 {subcourses.map((sub, i) => (
                   <motion.div
-                    key={sub.id}
+                    key={sub.subcourse_id || i} // Use subcourse_id if available, fallback to index i
                     custom={i}
                     variants={subcourseVariants}
                     initial="hidden"

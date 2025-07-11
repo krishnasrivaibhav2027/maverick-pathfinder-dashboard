@@ -148,17 +148,28 @@ const TraineeDashboard = () => {
     return uniqueCourses;
   }, [courses, traineeState]);
 
+  // console.log("TraineeDashboard: traineeState:", traineeState);
+  // console.log("TraineeDashboard: courses state:", courses);
+  // console.log("TraineeDashboard: relevantCourses:", relevantCourses);
+
 
   useEffect(() => {
     async function fetchCourses() {
+      console.log("Fetching /courses...");
       try {
         const res = await fetch("http://localhost:8000/courses");
+        console.log("/courses response status:", res.status);
         if (res.ok) {
           const data = await res.json();
-          setCourses(data.courses || []);
+          console.log("Raw data from /courses:", data);
+          setCourses(data.courses || data || []); // Adjust based on actual API (data.courses or data itself)
+        } else {
+          console.error("Failed to fetch /courses, status:", res.status);
+          setCourses([]); // Set to empty on error
         }
       } catch (err) {
-        // Optionally handle error
+        console.error("Error fetching /courses:", err);
+        setCourses([]); // Set to empty on error
       }
     }
     fetchCourses();
@@ -180,64 +191,66 @@ const TraineeDashboard = () => {
     fetchProgress();
   }, [empId]);
 
-  useEffect(() => {
-    let isMounted = true;
-    const intervalId = setInterval(fetchChartData, POLL_INTERVAL);
+  // Temporarily commenting out chart data fetching to isolate course display issues
+  // useEffect(() => {
+  //   let isMounted = true;
+  //   const intervalId = setInterval(fetchChartData, POLL_INTERVAL);
 
-    async function fetchChartData() {
-      try {
-        // Fetch Weekly Progress
-        const progressRes = await fetch('http://localhost:8000/batches/weekly-progress');
-        const progressJson = await progressRes.json();
-        // Find this trainee's batch (by empId)
-        let traineeBatch = null;
-        for (const batch of progressJson) {
-          if (batch.trainees && batch.trainees.some(t => t.email === traineeState.email || t.empId === traineeState.empId)) {
-            traineeBatch = batch;
-            break;
-          }
-        }
-        // Fallback: use first batch if not found
-        const batchProgress = traineeBatch ? traineeBatch.weeklyProgress : (progressJson[0]?.weeklyProgress || []);
-        // Map to chart format
-        const progressChartData = batchProgress.map(w => ({
-          week: w.week,
-          score: w.progress, // Assuming 'progress' is average score for the week
-          completion: w.progress // You can adjust if you have separate completion data
-        }));
-        if (isMounted) setProgressData(progressChartData);
+  //   async function fetchChartData() {
+  //     try {
+  //       // Fetch Weekly Progress
+  //       const progressRes = await fetch('http://localhost:8000/batches/weekly-progress');
+  //       const progressJson = await progressRes.json();
+  //       // Find this trainee's batch (by empId)
+  //       let traineeBatch = null;
+  //       for (const batch of progressJson) {
+  //         if (batch.trainees && batch.trainees.some(t => t.email === traineeState.email || t.empId === traineeState.empId)) {
+  //           traineeBatch = batch;
+  //           break;
+  //         }
+  //       }
+  //       // Fallback: use first batch if not found
+  //       const batchProgress = traineeBatch ? traineeBatch.weeklyProgress : (progressJson[0]?.weeklyProgress || []);
+  //       // Map to chart format
+  //       const progressChartData = batchProgress.map(w => ({
+  //         week: w.week,
+  //         score: w.progress, // Assuming 'progress' is average score for the week
+  //         completion: w.progress // You can adjust if you have separate completion data
+  //       }));
+  //       if (isMounted) setProgressData(progressChartData);
 
-        // Fetch Skills Assessment
-        const skillsRes = await fetch('http://localhost:8000/analytics/skill-heatmap');
-        const skillsJson = await skillsRes.json();
-        // Find this trainee's batch index
-        let batchIdx = 0;
-        if (skillsJson.batches && Array.isArray(skillsJson.batches)) {
-          batchIdx = skillsJson.batches.findIndex(bn => bn.toLowerCase().includes(traineeState.specialization?.toLowerCase() || ''));
-          if (batchIdx === -1) batchIdx = 0;
-        }
-        // Map skills for this batch
-        const skillsChartData = (skillsJson.skills || []).map((skill, i) => ({
-          skill,
-          score: skillsJson.matrix[i][batchIdx] ?? 0
-        }));
-        if (isMounted) setSkillsData(skillsChartData);
-      } catch (err) {
-        // Optionally handle error
-      }
-    }
+  //       // Fetch Skills Assessment
+  //       const skillsRes = await fetch('http://localhost:8000/analytics/skill-heatmap');
+  //       const skillsJson = await skillsRes.json();
+  //       // Find this trainee's batch index
+  //       let batchIdx = 0;
+  //       if (skillsJson.batches && Array.isArray(skillsJson.batches)) {
+  //         batchIdx = skillsJson.batches.findIndex(bn => bn.toLowerCase().includes(traineeState.specialization?.toLowerCase() || ''));
+  //         if (batchIdx === -1) batchIdx = 0;
+  //       }
+  //       // Map skills for this batch
+  //       const skillsChartData = (skillsJson.skills || []).map((skill, i) => ({
+  //         skill,
+  //         score: skillsJson.matrix[i][batchIdx] ?? 0
+  //       }));
+  //       if (isMounted) setSkillsData(skillsChartData);
+  //     } catch (err) {
+  //       // Optionally handle error
+  //       console.error("Error in fetchChartData:", err);
+  //     }
+  //   }
 
-    return () => {
-      isMounted = false;
-      clearInterval(intervalId);
-    };
-  }, [traineeState]);
+  //   return () => {
+  //     isMounted = false;
+  //     clearInterval(intervalId);
+  //   };
+  // }, [traineeState]);
 
   useEffect(() => {
     if (
       traineeState &&
       (traineeState.password_is_temporary === true ||
-        traineeState.password_is_temporary === undefined && (!traineeState.last_login || traineeState.last_login === '' || traineeState.last_login === null))
+        (traineeState.password_is_temporary === undefined && (!traineeState.last_login || traineeState.last_login === '' || traineeState.last_login === null)))
     ) {
       setShowChangePasswordModal(true);
     }
@@ -260,20 +273,31 @@ const TraineeDashboard = () => {
         const res = await fetch(`http://localhost:8000/trainees/${empId}`);
         if (res.ok) {
           const data = await res.json();
+          console.log("TraineeDashboard: Fetched traineeState data:", data); // Log trainee data
           setTrainee(data);
+        } else {
+          console.error("Failed to fetch trainee data, status:", res.status);
         }
       } catch (err) {
-        // Optionally handle error
+        console.error("Error fetching trainee data:", err);
       }
-      // Fetch tasks for this trainee
+      // Fetch tasks for this trainee, with graceful error handling for 404s
       try {
-        const res = await fetch(`http://localhost:8000/trainees/${empId}/tasks`);
-        if (res.ok) {
-          const data = await res.json();
-          setTasks(data.tasks || []);
+        const tasksRes = await fetch(`http://localhost:8000/trainees/${empId}/tasks`);
+        if (tasksRes.ok) {
+          const tasksData = await tasksRes.json();
+          setTasks(tasksData.tasks || []);
+        } else {
+          if (tasksRes.status === 404) {
+            console.warn(`Task endpoint not found for trainee ${empId} (404). Displaying no tasks. Please ensure backend endpoint '/trainees/{emp_id}/tasks' is correctly implemented if tasks are expected.`);
+          } else {
+            console.error(`Failed to fetch tasks for trainee ${empId}, status: ${tasksRes.status}`);
+          }
+          setTasks([]); // Set empty on any error or non-OK response for tasks
         }
       } catch (err) {
-        setTasks([]);
+        console.error(`Error fetching tasks for trainee ${empId}:`, err);
+        setTasks([]); // Set empty on network error
       }
     }
     fetchTrainee();
@@ -281,6 +305,7 @@ const TraineeDashboard = () => {
 
   useEffect(() => {
     if (traineeState && traineeState.name) {
+      // console.log("TraineeDashboard: Storing traineeState to localStorage:", traineeState);
       localStorage.setItem('traineeState', JSON.stringify(traineeState));
     }
   }, [traineeState]);
@@ -306,12 +331,19 @@ const TraineeDashboard = () => {
       // The timeout helps ensure the element is rendered and phase is expanded
       setTimeout(() => {
         if (typeof courseIdToFocus === 'string' && courseIdToFocus.trim() !== '') {
-          const numericCourseId = parseInt(courseIdToFocus, 10);
-          // Ensure numericCourseId is a valid number and the ref exists
-          if (!isNaN(numericCourseId) && courseRefs.current[numericCourseId]) {
-            courseRefs.current[numericCourseId].scrollIntoView({ behavior: "smooth", block: "center" });
+          // Use the original courseIdToFocus (string) to find the ref,
+          // as courseRefs are keyed by the original course.course_id (which can be alphanumeric)
+          if (courseRefs.current[courseIdToFocus]) {
+            courseRefs.current[courseIdToFocus].scrollIntoView({ behavior: "smooth", block: "center" });
           } else {
-            console.warn(`Course ref not found for courseIdToFocus: ${courseIdToFocus} (parsed as ${numericCourseId})`);
+            // Attempt parsing for purely numeric IDs as a fallback if direct string match failed,
+            // though refs should ideally be keyed consistently (e.g. always by string ID)
+            const numericAttempt = parseInt(courseIdToFocus, 10);
+            if (!isNaN(numericAttempt) && courseRefs.current[numericAttempt]) {
+                 courseRefs.current[numericAttempt].scrollIntoView({ behavior: "smooth", block: "center" });
+            } else {
+                console.warn(`Course ref not found for courseIdToFocus: '${courseIdToFocus}'`);
+            }
           }
         }
         // Clean up navigation state to prevent re-triggering on unrelated re-renders
@@ -710,34 +742,43 @@ const TraineeDashboard = () => {
                     <div className="space-y-4 mt-6 w-full p-4">
                       <div className="flex flex-col gap-4 w-full">
                         <AnimatePresence initial={false}>
-                          {relevantCourses.map((course, index) => {
-                            const completedCount = progress.find(p => String(p.course_id) === String(course.course_id))?.completed_subcourses.length || 0;
-                            const total = Array.isArray(course.subcourses) ? course.subcourses.length : 0;
-                            return (
-                              <motion.div
-                                key={course.course_id}
-                                layoutId={`course-block-${course.course_id}`}
-                                ref={el => courseRefs.current[course.course_id] = el}
-                                className="p-0 rounded-xl border border-orange-200 bg-white/90 shadow transition-all duration-200 cursor-pointer min-h-[72px] hover:bg-orange-50 hover:shadow-2xl hover:scale-105 hover:-translate-y-1 will-change-transform"
-                                tabIndex={0}
-                                whileTap={{ scale: 0.97, boxShadow: '0 8px 32px 0 #f59e4244', backgroundColor: '#fff7f0' }}
-                                onClick={() => navigate(`/training/course/${course.course_id}`, { state: { courseId: course.course_id, user: traineeState } })}
-                                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate(`/training/course/${course.course_id}`, { state: { courseId: course.course_id, user: traineeState } }); }}
-                                aria-label={`Open ${course.title}`}
-                              >
-                                <div className="flex items-center gap-3 justify-between px-6 py-4 select-none rounded-xl focus:outline-none">
-                                  <div className="flex items-center gap-3">
-                                    <h3 className="text-lg font-semibold group-hover:text-orange-600 transition-colors duration-300">
-                                      {course.title}
-                                    </h3>
-                                    <span className="ml-3 text-xs bg-orange-100 text-orange-700 rounded-full px-3 py-0.5 font-semibold">
-                                      {completedCount}/{total} completed
-                                    </span>
+                          {relevantCourses && relevantCourses.length > 0 ? (
+                            relevantCourses.map((course, index) => {
+                              // Ensure course and course.subcourses are defined before trying to access properties
+                              if (!course || !course.course_id) {
+                                console.warn("Skipping render for course with missing course_id:", course);
+                                return null; // Skip rendering this course if essential data is missing
+                              }
+                              const completedCount = progress.find(p => String(p.course_id) === String(course.course_id))?.completed_subcourses.length || 0;
+                              const total = Array.isArray(course.subcourses) ? course.subcourses.length : 0;
+                              return (
+                                <motion.div
+                                  key={course.course_id} // Essential: course_id must be unique and present
+                                  layoutId={`course-block-${course.course_id}`}
+                                  ref={el => { if (course.course_id) courseRefs.current[course.course_id] = el; }}
+                                  className="p-0 rounded-xl border border-orange-200 bg-white/90 shadow transition-all duration-200 cursor-pointer min-h-[72px] hover:bg-orange-50 hover:shadow-2xl hover:scale-105 hover:-translate-y-1 will-change-transform"
+                                  tabIndex={0}
+                                  whileTap={{ scale: 0.97, boxShadow: '0 8px 32px 0 #f59e4244', backgroundColor: '#fff7f0' }}
+                                  onClick={() => navigate(`/training/course/${course.course_id}`, { state: { courseId: course.course_id, user: traineeState, empId: empId } })}
+                                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate(`/training/course/${course.course_id}`, { state: { courseId: course.course_id, user: traineeState, empId: empId } }); }}
+                                  aria-label={`Open ${course.title || 'Unnamed Course'}`}
+                                >
+                                  <div className="flex items-center gap-3 justify-between px-6 py-4 select-none rounded-xl focus:outline-none">
+                                    <div className="flex items-center gap-3">
+                                      <h3 className="text-lg font-semibold group-hover:text-orange-600 transition-colors duration-300">
+                                        {course.title || 'Unnamed Course'}
+                                      </h3>
+                                      <span className="ml-3 text-xs bg-orange-100 text-orange-700 rounded-full px-3 py-0.5 font-semibold">
+                                        {completedCount}/{total} completed
+                                      </span>
+                                    </div>
                                   </div>
-                                </div>
-                              </motion.div>
-                            );
-                          })}
+                                </motion.div>
+                              );
+                            })
+                          ) : (
+                            <p className="text-gray-500">No courses available for your batch or common to all.</p>
+                          )}
                         </AnimatePresence>
                       </div>
                     </div>
