@@ -353,7 +353,7 @@ const TraineeDashboard = () => {
         }
       }, 150); // Slightly increased delay to allow for tab switch and phase expansion
     }
-  }, [location.state, navigate]); // Add navigate to dependency array
+  }, [location.state, location.pathname, navigate]); // Add location.pathname to dependency array
 
   const handlePasswordChange = async () => {
     if (!allPwChecks || !passwordsMatch) {
