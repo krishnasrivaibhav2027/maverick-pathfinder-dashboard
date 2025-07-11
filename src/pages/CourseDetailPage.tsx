@@ -151,18 +151,19 @@ export default function CourseDetailPage() {
                         )}
                         <span className="text-lg font-semibold group-hover:text-orange-600 transition-colors duration-300">{sub.title}</span>
                       </div>
-                      <Badge 
-                        variant={
-                          typeof sub.status === 'string' && sub.status === "completed" ? "default"
-                          : typeof sub.status === 'string' && sub.status === "in-progress" ? "default"
-                          : "secondary"
-                        }
-                        className="rounded-full px-3 py-1 text-base font-semibold"
-                      >
-                        {typeof sub.status === 'string' && sub.status.length > 0
-                          ? sub.status.charAt(0).toUpperCase() + sub.status.slice(1)
-                          : 'Status N/A'}
-                      </Badge>
+                      {/* Only show badge if sub.status is a non-empty string */}
+                      {typeof sub.status === 'string' && sub.status.length > 0 && (
+                        <Badge 
+                          variant={
+                            sub.status === "completed" ? "default"
+                            : sub.status === "in-progress" ? "default"
+                            : "secondary"
+                          }
+                          className="rounded-full px-3 py-1 text-base font-semibold"
+                        >
+                          {sub.status.charAt(0).toUpperCase() + sub.status.slice(1)}
+                        </Badge>
+                      )}
                       <ChevronRight className="h-5 w-5 text-orange-300" />
                     </div>
                   </motion.div>

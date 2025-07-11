@@ -250,7 +250,7 @@ const TraineeDashboard = () => {
   }, [empId]);
 
   useEffect(() => {
-    if (traineeState && traineeState.name) {
+    if (traineeState && traineeState.name && traineeState.empId) {
       localStorage.setItem('traineeState', JSON.stringify(traineeState));
     }
   }, [traineeState]);
