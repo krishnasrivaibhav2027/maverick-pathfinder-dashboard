@@ -58,7 +58,6 @@ export default function LoginPage() {
           localStorage.removeItem('is_admin');
           localStorage.removeItem('admin_name');
           localStorage.setItem('empId', data.empId);
-          localStorage.setItem('traineeState', JSON.stringify(data));
           navigate(`/trainee-dashboard/${data.empId}`, { state: { user: data } });
         }
       } else {

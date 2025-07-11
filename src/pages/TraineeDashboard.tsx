@@ -58,6 +58,9 @@ const glass = "bg-white/60 backdrop-blur-md shadow-2xl border border-white/30";
 const font = { fontFamily: 'Inter, ui-rounded, system-ui, sans-serif' };
 
 const TraineeDashboard = () => {
+  // Define phaseTwoTrainings as an empty array to prevent map errors if not populated
+  const phaseTwoTrainings = [];
+
   const navigate = useNavigate();
   const { empId } = useParams();
   const location = useLocation();
@@ -112,12 +115,39 @@ const TraineeDashboard = () => {
   // Add refs for course blocks
   const courseRefs = useRef({});
 
-  // Move this definition just before UnlockedPhaseCard
-  const phaseTwoTrainings = [
-    { id: 201, title: "Advanced Programming", status: "pending", progress: 0 },
-    { id: 202, title: "System Design", status: "pending", progress: 0 },
-    { id: 203, title: "Cloud Fundamentals", status: "pending", progress: 0 },
-  ];
+  // Memoized relevant courses based on trainee's batch and common courses
+  const relevantCourses = React.useMemo(() => {
+    if (!courses || courses.length === 0 || !traineeState) {
+      return [];
+    }
+
+    const traineeBatch = traineeState.specialization?.toLowerCase() || null;
+
+    const filtered = courses.filter(course => {
+      if (!course.batch_specificity || !course.course_id) return false;
+      const courseSpecificity = course.batch_specificity.toLowerCase();
+
+      if (courseSpecificity === 'common') {
+        return true;
+      }
+      if (traineeBatch && courseSpecificity === traineeBatch) {
+        return true;
+      }
+      return false;
+    });
+
+    // Deduplicate based on course_id
+    const uniqueCourses = [];
+    const seenIds = new Set();
+    for (const course of filtered) {
+      if (!seenIds.has(course.course_id)) {
+        uniqueCourses.push(course);
+        seenIds.add(course.course_id);
+      }
+    }
+    return uniqueCourses;
+  }, [courses, traineeState]);
+
 
   useEffect(() => {
     async function fetchCourses() {
@@ -250,7 +280,7 @@ const TraineeDashboard = () => {
   }, [empId]);
 
   useEffect(() => {
-    if (traineeState && traineeState.name && traineeState.empId) {
+    if (traineeState && traineeState.name) {
       localStorage.setItem('traineeState', JSON.stringify(traineeState));
     }
   }, [traineeState]);
@@ -291,7 +321,7 @@ const TraineeDashboard = () => {
         }
       }, 150); // Slightly increased delay to allow for tab switch and phase expansion
     }
-  }, [location.state, location.pathname, navigate]); // Add location.pathname to dependency array
+  }, [location.state, navigate]); // Add navigate to dependency array
 
   const handlePasswordChange = async () => {
     if (!allPwChecks || !passwordsMatch) {
@@ -680,9 +710,9 @@ const TraineeDashboard = () => {
                     <div className="space-y-4 mt-6 w-full p-4">
                       <div className="flex flex-col gap-4 w-full">
                         <AnimatePresence initial={false}>
-                          {courses.map((course, index) => {
-                            const completedCount = progress.find(p => p.course_id === String(course.course_id))?.completed_subcourses.length || 0;
-                            const total = course.subcourses.length;
+                          {relevantCourses.map((course, index) => {
+                            const completedCount = progress.find(p => String(p.course_id) === String(course.course_id))?.completed_subcourses.length || 0;
+                            const total = Array.isArray(course.subcourses) ? course.subcourses.length : 0;
                             return (
                               <motion.div
                                 key={course.course_id}
