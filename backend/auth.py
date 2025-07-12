@@ -39,6 +39,10 @@ async def get_user_by_empid_or_email(username: str):
     user = await _db.trainees.find_one({"empId": username})
     if not user:
         user = await _db.trainees.find_one({"email": username})
+    if not user:
+        user = await _db.admins.find_one({"empId": username})
+    if not user:
+        user = await _db.admins.find_one({"email": username})
     return user
 
 @router.post("/auth/login")
@@ -74,7 +78,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    user = await _db.trainees.find_one({"empId": user_id})
+    user = await get_user_by_empid_or_email(user_id)
     if user is None:
         raise credentials_exception
-    return user 
+    return user
