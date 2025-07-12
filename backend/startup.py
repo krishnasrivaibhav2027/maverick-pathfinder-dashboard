@@ -22,12 +22,13 @@ async def test_services():
         from .db import get_database
         from .ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations, extract_text_from_pdf, extract_text_from_docx, fast_extract_resume_fields
         from .email_service import send_welcome_email_smtp, test_smtp_connection
-        from .models import Admin, Trainee, DashboardStats, WeeklyProgress, PhaseDistribution, Training, Task, LoginRequest, SetPasswordRequest, ChangePasswordRequest, Batch, Activity
+        from .models import Admin, Trainee
         from .auth import create_access_token, verify_token
         
+        from .db import test_db_connection
         # Test database connection
         print("📊 Testing database connection...")
-        db_status, db_message = await get_database.test_db_connection()
+        db_status, db_message = await test_db_connection()
         print(f"   Database: {'✅' if db_status else '❌'} {db_message}")
         
         # Test Ollama connection
@@ -37,7 +38,7 @@ async def test_services():
         
         # Test Gmail SMTP connection
         print("📧 Testing EmailJS connection...")
-        smtp_status, smtp_message = test_smtp_connection()
+        smtp_status, smtp_message = await test_smtp_connection()
         print(f"   EmailJS: {'✅' if smtp_status else '❌'} {smtp_message}")
         
         # Overall status
@@ -56,10 +57,11 @@ async def create_sample_admin():
     """Create two sample admin users if none exist"""
     try:
         from .db import get_database
-        from .models import Admin, Trainee
+        from .models import Admin
+        from .auth import get_password_hash
         from datetime import datetime
         
-        database = get_database.get_database()
+        database = get_database()
         
         # Check if admin exists
         admin_count = await database.admins.count_documents({})
@@ -71,7 +73,7 @@ async def create_sample_admin():
                 Admin(
                     name="Admin One",
                     email="admin1@maverick.com",
-                    password="admin123",
+                    password=get_password_hash("admin123"),
                     empId="ADM-0001",
                     role="admin",
                     created_at=datetime.now().isoformat()
@@ -79,7 +81,7 @@ async def create_sample_admin():
                 Admin(
                     name="Admin Two",
                     email="admin2@maverick.com",
-                    password="admin123",
+                    password=get_password_hash("admin123"),
                     empId="ADM-0002",
                     role="admin",
                     created_at=datetime.now().isoformat()
