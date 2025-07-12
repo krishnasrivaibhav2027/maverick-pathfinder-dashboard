@@ -53,48 +53,6 @@ async def test_services():
         print(f"❌ Error testing services: {e}")
         return False
 
-async def create_sample_admin():
-    """Create two sample admin users if none exist"""
-    try:
-        from .db import get_database
-        from .models import Admin
-        from .auth import get_password_hash
-        from datetime import datetime
-        
-        database = get_database()
-        
-        # Check if admin exists
-        admin_count = await database.admins.count_documents({})
-        
-        if admin_count == 0:
-            print("👤 Creating sample admin users...")
-            
-            admins = [
-                Admin(
-                    name="Admin One",
-                    email="admin1@maverick.com",
-                    password=get_password_hash("admin123"),
-                    empId="ADM-0001",
-                    role="admin",
-                    created_at=datetime.now().isoformat()
-                ),
-                Admin(
-                    name="Admin Two",
-                    email="admin2@maverick.com",
-                    password=get_password_hash("admin123"),
-                    empId="ADM-0002",
-                    role="admin",
-                    created_at=datetime.now().isoformat()
-                )
-            ]
-
-            await database.admins.insert_many([admin.model_dump() for admin in admins])
-            print("✅ Sample admins created: ADM-0001 / admin123, ADM-0002 / admin123")
-        else:
-            print("👤 Admin users already exist")
-            
-    except Exception as e:
-        print(f"❌ Error creating sample admin: {e}")
 
 async def initialize_database():
     """Initialize database with required collections and indexes"""
@@ -139,8 +97,6 @@ async def main():
         # Initialize database
         await initialize_database()
         
-        # Create sample admin
-        await create_sample_admin()
         
         # Migrate completed subcourses
         await migrate_completed_subcourses()

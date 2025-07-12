@@ -100,3 +100,11 @@ uvicorn main:app --reload
 ```
 
 The server will start at http://127.0.0.1:8000
+
+## Creating an Admin User
+
+To create an admin user, run the following command from the root directory:
+
+```bash
+python backend/scripts/create_admin.py --name "Your Name" --email "your.email@example.com" --password "your_password"
+```
