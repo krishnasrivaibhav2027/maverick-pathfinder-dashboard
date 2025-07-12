@@ -11,15 +11,24 @@ async def create_trainee(trainee: Trainee):
     result = await _db.trainees.insert_one(doc)
     return str(result.inserted_id)
 
-async def get_trainee_by_id(trainee_id: str):
-    doc = await _db.trainees.find_one({'_id': ObjectId(trainee_id)})
-    return Trainee(**doc) if doc else None
+async def get_user_by_empid(emp_id: str):
+    # This function now checks both trainees and admins collections
+    user = await _db.trainees.find_one({'empId': emp_id})
+    if user:
+        return Trainee(**user)
 
-async def update_trainee(trainee_id: str, update_data: dict):
-    await _db.trainees.update_one({'_id': ObjectId(trainee_id)}, {'$set': update_data})
+    user = await _db.admins.find_one({'empId': emp_id})
+    if user:
+        # You might need an Admin schema for this, assuming it's similar to Trainee
+        return Trainee(**user) # Or an appropriate Admin model
 
-async def delete_trainee(trainee_id: str):
-    await _db.trainees.delete_one({'_id': ObjectId(trainee_id)})
+    return None
+
+async def update_trainee(emp_id: str, update_data: dict):
+    await _db.trainees.update_one({'empId': emp_id}, {'$set': update_data})
+
+async def delete_trainee(emp_id: str):
+    await _db.trainees.delete_one({'empId': emp_id})
 
 # --- Course CRUD ---
 async def create_course(course: Course):

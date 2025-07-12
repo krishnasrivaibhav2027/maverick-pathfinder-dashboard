@@ -12,38 +12,41 @@ router = APIRouter()
 @router.post('/trainees', response_model=Trainee)
 async def register_trainee(trainee: Trainee):
     # Registration is public
-    existing = await crud_examples._db.trainees.find_one({'email': trainee.email})
+    existing = await crud_examples.get_user_by_empid(trainee.empId)
     if existing:
-        raise HTTPException(status_code=400, detail="Email already registered.")
+        raise HTTPException(status_code=400, detail="Employee ID already registered.")
     trainee_id = await crud_examples.create_trainee(trainee)
-    created = await crud_examples.get_trainee_by_id(trainee_id)
+    created = await crud_examples.get_user_by_empid(trainee.empId)
     return created
 
-@router.get('/trainees/{trainee_id}', response_model=Trainee)
-async def get_trainee_profile(trainee_id: str, user=Depends(get_current_user)):
-    if user['empId'] != trainee_id and user.get('role') != 'admin':
+@router.get('/trainees/{emp_id}', response_model=Trainee)
+async def get_user_profile(emp_id: str, user=Depends(get_current_user)):
+    if user['empId'] != emp_id and user.get('role') != 'admin':
         raise HTTPException(status_code=403, detail='Not authorized')
-    trainee = await crud_examples.get_trainee_by_id(trainee_id)
-    if not trainee:
-        raise HTTPException(status_code=404, detail="Trainee not found.")
-    return trainee
 
-@router.patch('/trainees/{trainee_id}', response_model=Trainee)
-async def update_trainee(trainee_id: str, update_data: dict = Body(...), user=Depends(get_current_user)):
-    if user['empId'] != trainee_id and user.get('role') != 'admin':
+    # Use a new function to get user by empId, which can check both trainees and admins
+    user_profile = await crud_examples.get_user_by_empid(emp_id)
+
+    if not user_profile:
+        raise HTTPException(status_code=404, detail="User not found.")
+    return user_profile
+
+@router.patch('/trainees/{emp_id}', response_model=Trainee)
+async def update_trainee(emp_id: str, update_data: dict = Body(...), user=Depends(get_current_user)):
+    if user['empId'] != emp_id and user.get('role') != 'admin':
         raise HTTPException(status_code=403, detail='Not authorized')
-    trainee = await crud_examples.get_trainee_by_id(trainee_id)
+    trainee = await crud_examples.get_user_by_empid(emp_id)
     if not trainee:
         raise HTTPException(status_code=404, detail="Trainee not found.")
-    await crud_examples.update_trainee(trainee_id, update_data)
-    updated = await crud_examples.get_trainee_by_id(trainee_id)
+    await crud_examples.update_trainee(emp_id, update_data)
+    updated = await crud_examples.get_user_by_empid(emp_id)
     return updated
 
-@router.get('/trainees/{trainee_id}/courses')
-async def get_trainee_courses(trainee_id: str, user=Depends(get_current_user)):
-    if user['empId'] != trainee_id and user.get('role') != 'admin':
+@router.get('/trainees/{emp_id}/courses')
+async def get_trainee_courses(emp_id: str, user=Depends(get_current_user)):
+    if user['empId'] != emp_id and user.get('role') != 'admin':
         raise HTTPException(status_code=403, detail='Not authorized')
-    trainee = await crud_examples.get_trainee_by_id(trainee_id)
+    trainee = await crud_examples.get_user_by_empid(emp_id)
     if not trainee:
         raise HTTPException(status_code=404, detail="Trainee not found.")
     courses_cursor = crud_examples._db.courses.find({})
@@ -67,11 +70,11 @@ async def get_trainee_courses(trainee_id: str, user=Depends(get_current_user)):
         })
     return courses
 
-@router.get('/trainees/{trainee_id}/analytics')
-async def get_trainee_analytics(trainee_id: str, user=Depends(get_current_user)):
-    if user['empId'] != trainee_id and user.get('role') != 'admin':
+@router.get('/trainees/{emp_id}/analytics')
+async def get_trainee_analytics(emp_id: str, user=Depends(get_current_user)):
+    if user['empId'] != emp_id and user.get('role') != 'admin':
         raise HTTPException(status_code=403, detail='Not authorized')
-    trainee = await crud_examples.get_trainee_by_id(trainee_id)
+    trainee = await crud_examples.get_user_by_empid(emp_id)
     if not trainee:
         raise HTTPException(status_code=404, detail="Trainee not found.")
     # Aggregate real-time stats
