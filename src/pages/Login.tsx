@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { jwtDecode } from "jwt-decode";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -57,17 +58,25 @@ export default function LoginPage() {
       const data = await response.json();
       if (response.ok && data.access_token) {
         localStorage.setItem("access_token", data.access_token);
+        const decodedToken: { role: string; sub: string } = jwtDecode(data.access_token);
         toast({ title: "✅ Login Successful", description: `Welcome back!` });
-        // Fetch user profile using token
-        const profileRes = await fetch(`http://localhost:8000/api/v2/trainees/${empId}`, {
-          headers: { Authorization: `Bearer ${data.access_token}` },
-        });
-        const user = await profileRes.json();
-        if (user && user.empId) {
-          localStorage.setItem("empId", user.empId);
-          navigate(`/trainee-dashboard/${user.empId}`, { state: { user } });
+
+        if (decodedToken.role === "admin") {
+          localStorage.setItem("is_admin", "true");
+          localStorage.setItem("admin_name", "Admin User");
+          navigate("/admin-dashboard");
         } else {
-          toast({ variant: "destructive", title: "Login Failed", description: "Could not fetch user profile." });
+          // Fetch user profile using token
+          const profileRes = await fetch(`http://localhost:8000/api/v2/trainees/${empId}`, {
+            headers: { Authorization: `Bearer ${data.access_token}` },
+          });
+          const user = await profileRes.json();
+          if (user && user.empId) {
+            localStorage.setItem("empId", user.empId);
+            navigate(`/trainee-dashboard/${user.empId}`, { state: { user } });
+          } else {
+            toast({ variant: "destructive", title: "Login Failed", description: "Could not fetch user profile." });
+          }
         }
       } else {
         toast({ variant: "destructive", title: "Login Failed", description: data.detail || "Invalid credentials." });

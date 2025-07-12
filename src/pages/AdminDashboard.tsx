@@ -22,7 +22,8 @@ import {
   Send,
   ChevronDown,
   X,
-  Bell
+  Bell,
+  Trash2
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -265,6 +266,22 @@ const AdminDashboard = () => {
     trainee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (trainee.empId && trainee.empId.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  const handleDelete = async (empId: string) => {
+    try {
+      const response = await fetch(`http://localhost:8000/trainees/${empId}`, {
+        method: 'DELETE',
+      });
+      if (response.ok) {
+        setTrainees(trainees.filter(trainee => trainee.empId !== empId));
+        toast({ title: "✅ Trainee Deleted", description: `Trainee with ID ${empId} has been deleted.` });
+      } else {
+        toast({ variant: "destructive", title: "Deletion Failed", description: "Could not delete trainee." });
+      }
+    } catch (error) {
+      toast({ variant: "destructive", title: "Connection Error", description: "Could not connect to the server." });
+    }
+  };
 
   // Fetch top 3 activities, poll every 30s
   useEffect(() => {
@@ -763,47 +780,60 @@ const AdminDashboard = () => {
               </div>
               <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {filteredTrainees.map((trainee) => (
-                  <Link to={`/trainee-dashboard/${trainee.empId}`} key={trainee.empId} className="block text-inherit no-underline">
-                    <div className={`rounded-3xl ${glass} p-6 hover:scale-105 transition-transform flex flex-col h-full shadow-xl`}>
-                      <div className="flex items-center gap-4 border-b pb-4 mb-4">
-                        <Avatar className="h-14 w-14">
-                          <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${trainee.name}`} />
-                          <AvatarFallback>{trainee.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <h3 className="font-semibold text-lg">{trainee.name}</h3>
-                          <p className="text-sm text-gray-600">{trainee.empId}</p>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 text-sm mb-2">
-                        <div>
-                          <p className="text-gray-500">Phase</p>
-                          <Badge variant={trainee.phase === 2 ? "default" : "secondary"}>
-                            Phase {trainee.phase}
-                          </Badge>
-                        </div>
-                        <div>
-                          <p className="text-gray-500">Status</p>
-                          <Badge variant={trainee.status === 'active' ? 'default' : 'destructive'}>{trainee.status}</Badge>
-                        </div>
-                        <div className="col-span-2">
-                          <p className="text-gray-500">Progress</p>
-                          <div className="flex items-center gap-2">
-                            <Progress value={trainee.progress} className="w-full" />
-                            <p className="font-semibold">{trainee.progress}%</p>
+                  <div key={trainee.empId} className="relative">
+                    <Link to={`/trainee-dashboard/${trainee.empId}`} className="block text-inherit no-underline">
+                      <div className={`rounded-3xl ${glass} p-6 hover:scale-105 transition-transform flex flex-col h-full shadow-xl`}>
+                        <div className="flex items-center gap-4 border-b pb-4 mb-4">
+                          <Avatar className="h-14 w-14">
+                            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${trainee.name}`} />
+                            <AvatarFallback>{trainee.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <h3 className="font-semibold text-lg">{trainee.name}</h3>
+                            <p className="text-sm text-gray-600">{trainee.empId}</p>
                           </div>
                         </div>
-                        <div className="col-span-2">
-                          <p className="text-gray-500">Score</p>
-                          <p className="font-semibold text-green-600">{trainee.score}%</p>
-                        </div>
-                        <div className="col-span-2">
-                          <p className="text-gray-500">Specialization</p>
-                          <Badge variant="outline">{trainee.specialization}</Badge>
+                        <div className="grid grid-cols-2 gap-4 text-sm mb-2">
+                          <div>
+                            <p className="text-gray-500">Phase</p>
+                            <Badge variant={trainee.phase === 2 ? "default" : "secondary"}>
+                              Phase {trainee.phase}
+                            </Badge>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">Status</p>
+                            <Badge variant={trainee.status === 'active' ? 'default' : 'destructive'}>{trainee.status}</Badge>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-gray-500">Progress</p>
+                            <div className="flex items-center gap-2">
+                              <Progress value={trainee.progress} className="w-full" />
+                              <p className="font-semibold">{trainee.progress}%</p>
+                            </div>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-gray-500">Score</p>
+                            <p className="font-semibold text-green-600">{trainee.score}%</p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-gray-500">Specialization</p>
+                            <Badge variant="outline">{trainee.specialization}</Badge>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </Link>
+                    </Link>
+                    <Button
+                      variant="destructive"
+                      size="icon"
+                      className="absolute top-4 right-4"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDelete(trainee.empId);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
                 ))}
               </div>
             </div>

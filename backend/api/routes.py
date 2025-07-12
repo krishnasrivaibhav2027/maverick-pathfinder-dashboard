@@ -42,6 +42,16 @@ async def update_trainee(emp_id: str, update_data: dict = Body(...), user=Depend
     updated = await crud_examples.get_user_by_empid(emp_id)
     return updated
 
+@router.delete('/trainees/{emp_id}')
+async def delete_trainee(emp_id: str, user=Depends(get_current_user)):
+    if user.get('role') != 'admin':
+        raise HTTPException(status_code=403, detail='Admin only')
+    trainee = await crud_examples.get_user_by_empid(emp_id)
+    if not trainee:
+        raise HTTPException(status_code=404, detail="Trainee not found.")
+    await crud_examples.delete_trainee(emp_id)
+    return {"message": "Trainee deleted successfully."}
+
 @router.get('/trainees/{emp_id}/courses')
 async def get_trainee_courses(emp_id: str, user=Depends(get_current_user)):
     if user['empId'] != emp_id and user.get('role') != 'admin':
