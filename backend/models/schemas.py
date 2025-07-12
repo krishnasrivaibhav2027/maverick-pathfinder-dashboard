@@ -36,12 +36,12 @@ class Trainee(BaseModel):
     phase: int = 1
     status: str = 'active'
     progress: Optional[dict] = None  # {phase1: int, phase2: int, overall: int}
-    specialization: Optional[str]
+    specialization: Optional[str] = None
     password_is_temporary: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_login: Optional[datetime]
-    currentCourse: Optional[ObjectId]
-    currentSubcourse: Optional[ObjectId]
+    currentCourse: Optional[ObjectId] = None
+    currentSubcourse: Optional[ObjectId] = None
     completedCourses: List[CompletedCourse] = []
     completedQuizzes: List[CompletedQuiz] = []
     model_config = {"arbitrary_types_allowed": True}
