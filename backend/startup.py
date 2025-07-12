@@ -19,11 +19,11 @@ async def test_services():
     print("🔧 Testing backend services...")
     
     try:
-        from db import get_database
-        from ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations, extract_text_from_pdf, extract_text_from_docx, fast_extract_resume_fields
-        from email_service import send_welcome_email_smtp, test_smtp_connection
-        from models import Admin, Trainee, DashboardStats, WeeklyProgress, PhaseDistribution, Training, Task, LoginRequest, SetPasswordRequest, ChangePasswordRequest, Batch, Activity
-        from auth import create_access_token, verify_token
+        from .db import get_database
+        from .ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations, extract_text_from_pdf, extract_text_from_docx, fast_extract_resume_fields
+        from .email_service import send_welcome_email_smtp, test_smtp_connection
+        from .models import Admin, Trainee, DashboardStats, WeeklyProgress, PhaseDistribution, Training, Task, LoginRequest, SetPasswordRequest, ChangePasswordRequest, Batch, Activity
+        from .auth import create_access_token, verify_token
         
         # Test database connection
         print("📊 Testing database connection...")
@@ -55,8 +55,8 @@ async def test_services():
 async def create_sample_admin():
     """Create two sample admin users if none exist"""
     try:
-        from db import get_database
-        from models import Admin, Trainee
+        from .db import get_database
+        from .models import Admin, Trainee
         from datetime import datetime
         
         database = get_database.get_database()
@@ -97,7 +97,7 @@ async def create_sample_admin():
 async def initialize_database():
     """Initialize database with required collections and indexes"""
     try:
-        from db import get_database
+        from .db import get_database
         
         database = get_database.get_database()
         

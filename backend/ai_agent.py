@@ -315,3 +315,56 @@ def fast_extract_resume_fields(text: str, skill_priority=None) -> dict:
     if email and found_skill:
         return {"name": name, "email": email, "skills": [found_skill]}
     return None
+
+async def generate_quiz_questions_with_llama(subcourse_title: str, context: str = "") -> list:
+    """
+    Use Llama to generate a list of quiz questions and options for a subcourse.
+    Returns a list of dicts: [{question, options, correctAnswer}]
+    """
+    prompt = (
+        f"Generate a quiz for the subcourse titled '{subcourse_title}'. "
+        "Create 5 multiple-choice questions. For each question, provide 4 options and indicate the correct answer. "
+        "Respond in JSON format as a list of objects: [{question, options, correctAnswer}]. "
+        f"Context: {context}"
+    )
+    try:
+        response = await llm.ainvoke(prompt)
+        questions = json.loads(response)
+        # Validate structure
+        if not isinstance(questions, list) or not all('question' in q and 'options' in q and 'correctAnswer' in q for q in questions):
+            raise ValueError("Invalid quiz format from Llama")
+        return questions
+    except Exception as e:
+        print(f"Llama quiz generation failed: {e}")
+        # Fallback: return a static quiz
+        return [
+            {"question": "What is 2+2?", "options": ["3", "4", "5", "6"], "correctAnswer": "4"}
+        ]
+
+async def generate_short_notes_on_mistakes(questions: list, user_answers: dict) -> str:
+    """
+    Use Llama to generate short notes based on the questions the user got wrong.
+    """
+    mistakes = []
+    for i, q in enumerate(questions):
+        user_answer = user_answers.get(str(i))
+        if user_answer and user_answer != q.get('correctAnswer'):
+            mistakes.append({
+                'question': q.get('question'),
+                'correctAnswer': q.get('correctAnswer'),
+                'userAnswer': user_answer
+            })
+    if not mistakes:
+        return "No mistakes found."
+    prompt = (
+        "Given the following list of questions, the user's incorrect answers, and the correct answers, "
+        "generate concise study notes or explanations for each mistake to help the user improve. "
+        "Respond in a readable markdown format.\n\n" +
+        json.dumps(mistakes, indent=2)
+    )
+    try:
+        response = await llm.ainvoke(prompt)
+        return response
+    except Exception as e:
+        print(f"Llama short notes generation failed: {e}")
+        return "Review the correct answers and try again."

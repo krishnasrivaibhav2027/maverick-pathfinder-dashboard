@@ -12,6 +12,11 @@ const accent2 = "#F09819";
 const glass = "bg-white/60 backdrop-blur-md shadow-2xl border border-white/30";
 const font = { fontFamily: 'Inter, ui-rounded, system-ui, sans-serif' };
 
+// Helper to get JWT token
+function getToken() {
+  return localStorage.getItem("access_token");
+}
+
 export default function LoginPage() {
   const [tab, setTab] = useState<'login' | 'signup' | 'wait_approval'>('login');
   const [empId, setEmpId] = useState("");
@@ -39,26 +44,30 @@ export default function LoginPage() {
       return;
     }
     setIsLoading(true);
-    const role = detectRole(empId);
     try {
-      const response = await fetch("http://localhost:8000/auth/login", {
+      const formData = new URLSearchParams();
+      formData.append("username", empId); // username is empId or email
+      formData.append("password", password);
+      // Use new JWT endpoint
+      const response = await fetch("http://localhost:8000/api/v2/auth/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ empId, password, role }),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: formData.toString(),
       });
       const data = await response.json();
-      if (response.ok && data.empId && data.name) {
-        toast({ title: "✅ Login Successful", description: `Welcome back, ${data.name}!` });
-        if (role === "admin") {
-          localStorage.setItem('admin_name', data.name);
-          localStorage.setItem('is_admin', 'true');
-          localStorage.removeItem('empId');
-          navigate("/admin-dashboard");
+      if (response.ok && data.access_token) {
+        localStorage.setItem("access_token", data.access_token);
+        toast({ title: "✅ Login Successful", description: `Welcome back!` });
+        // Fetch user profile using token
+        const profileRes = await fetch(`http://localhost:8000/api/v2/trainees/${empId}`, {
+          headers: { Authorization: `Bearer ${data.access_token}` },
+        });
+        const user = await profileRes.json();
+        if (user && user.empId) {
+          localStorage.setItem("empId", user.empId);
+          navigate(`/trainee-dashboard/${user.empId}`, { state: { user } });
         } else {
-          localStorage.removeItem('is_admin');
-          localStorage.removeItem('admin_name');
-          localStorage.setItem('empId', data.empId);
-          navigate(`/trainee-dashboard/${data.empId}`, { state: { user: data } });
+          toast({ variant: "destructive", title: "Login Failed", description: "Could not fetch user profile." });
         }
       } else {
         toast({ variant: "destructive", title: "Login Failed", description: data.detail || "Invalid credentials." });

@@ -18,16 +18,16 @@ from collections import defaultdict
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from auth import create_access_token, verify_token
 from passlib.context import CryptContext
+from typing import Optional
 
 from db import get_database, test_db_connection, ensure_indexes
-from models import (
-    Trainee, Admin, DashboardStats, WeeklyProgress, 
-    PhaseDistribution, Training, Task, LoginRequest, SetPasswordRequest,
-    ChangePasswordRequest, Batch, Activity
-)
+from models import Trainee, Admin, Subcourse, Course, Quiz, Test
+from user_models import LoginRequest, SetPasswordRequest, ChangePasswordRequest, Batch
 from ai_agent import create_trainee_profile, test_ollama_connection, generate_training_recommendations, extract_text_from_pdf, extract_text_from_docx, fast_extract_resume_fields
 from email_service import send_welcome_email_smtp, test_smtp_connection
 from config import settings
+from api.routes import router as api_router
+from auth import router as auth_router
 
 app = FastAPI(
     title="Maverick Dashboard",
@@ -38,7 +38,7 @@ app = FastAPI(
 # CORS Middleware Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080", "http://localhost:8082"],  # Allow frontend origin
+    allow_origins=["*"],  # Allow all origins for development
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -60,6 +60,20 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # In-memory cache for uploaded resumes (keyed by upload/session ID)
 resume_cache = {}
+
+class Activity(BaseModel):
+    description: str
+    type: Optional[str] = None
+    timestamp: Optional[str] = None
+
+class Batch(BaseModel):
+    batch_number: int
+    skill: str
+    phase: int
+    is_next_batch: bool = False
+    trainees: list
+    created_at: str
+    accounts_created: Optional[bool] = False
 
 def serialize_doc(doc):
     """Serialize MongoDB document for JSON response"""
@@ -1186,6 +1200,8 @@ async def get_courses():
     return {"courses": courses}
 
 app.include_router(router)
+app.include_router(api_router, prefix="/api/v2")
+app.include_router(auth_router, prefix="/api/v2")
 
 if __name__ == "__main__":
     import uvicorn

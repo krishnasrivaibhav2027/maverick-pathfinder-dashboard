@@ -1,5 +1,5 @@
 import React from "react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -51,11 +51,35 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import dayjs from 'dayjs';
 import TraineeLayout from "@/components/TraineeLayout";
 import { motion, AnimatePresence } from "framer-motion";
+import ReactMarkdown from 'react-markdown';
 
 const accent = "#FF512F";
 const accent2 = "#F09819";
 const glass = "bg-white/60 backdrop-blur-md shadow-2xl border border-white/30";
 const font = { fontFamily: 'Inter, ui-rounded, system-ui, sans-serif' };
+
+interface AnalyticsData {
+  progress?: { [key: string]: number };
+  completed_courses?: number;
+  avg_score?: number;
+  quiz_pass_rate?: number;
+  ai_insights?: { recommendations?: string };
+}
+
+// Define types for quiz data
+interface QuizQuestion {
+  _id: string;
+  text: string;
+  options: string[];
+}
+interface QuizData {
+  _id: string;
+  questions: QuizQuestion[];
+}
+interface QuizResult {
+  score?: number;
+  feedback?: string;
+}
 
 const TraineeDashboard = () => {
   // Define phaseTwoTrainings as an empty array to prevent map errors if not populated
@@ -152,6 +176,37 @@ const TraineeDashboard = () => {
   // console.log("TraineeDashboard: courses state:", courses);
   // console.log("TraineeDashboard: relevantCourses:", relevantCourses);
 
+  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
+
+  // Add new state for re-attempt modal and short notes
+  const [showReattemptModal, setShowReattemptModal] = useState(false);
+  const [reattemptShortNotes, setReattemptShortNotes] = useState<string | null>(null);
+  const [reattemptLoading, setReattemptLoading] = useState(false);
+  const [reattemptError, setReattemptError] = useState<string | null>(null);
+  const [reattemptTestId, setReattemptTestId] = useState<string | null>(null);
+
+  // Add new state for quiz modal logic
+  const [quizData, setQuizData] = useState<QuizData | null>(null);
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [quizError, setQuizError] = useState<string | null>(null);
+  const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
+  const [quizSubmitting, setQuizSubmitting] = useState(false);
+  const [quizResult, setQuizResult] = useState<QuizResult | null>(null);
+
+  useEffect(() => {
+    async function fetchAnalytics() {
+      if (!empId) return;
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`http://localhost:8000/api/v2/trainees/${empId}/analytics`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAnalytics(data);
+      }
+    }
+    fetchAnalytics();
+  }, [empId]);
 
   useEffect(() => {
     async function fetchCourses() {
@@ -562,6 +617,115 @@ const TraineeDashboard = () => {
     }
   }
 
+  function getToken() {
+    return localStorage.getItem("access_token");
+  }
+
+  async function fetchWithAuth(url: string, options: RequestInit = {}) {
+    const token = getToken();
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+    });
+  }
+
+  // Function to open the modal and fetch short notes
+  const handleReattemptTest = useCallback(async (testId: string) => {
+    setShowReattemptModal(true);
+    setReattemptShortNotes(null);
+    setReattemptLoading(true);
+    setReattemptError(null);
+    setReattemptTestId(testId);
+    try {
+      const token = localStorage.getItem("access_token");
+      const res = await fetch(`http://localhost:8000/api/v2/tests/${testId}/short-notes`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setReattemptShortNotes(data.short_notes || "No notes available.");
+      } else {
+        setReattemptError("Failed to fetch short notes.");
+      }
+    } catch (err) {
+      setReattemptError("Could not connect to the server.");
+    } finally {
+      setReattemptLoading(false);
+    }
+  }, []);
+
+  // Function to proceed to test (replace with actual navigation/logic)
+  const handleProceedToTest = useCallback(() => {
+    setShowReattemptModal(false);
+    // TODO: Navigate to test attempt page or trigger test attempt logic
+    toast({ title: "Proceeding to test...", description: "(Implement test attempt flow here)" });
+  }, [toast]);
+
+  // Fetch quiz data when modal opens and selectedSubcourse changes
+  useEffect(() => {
+    if (showQuizModal && selectedSubcourse) {
+      setQuizLoading(true);
+      setQuizError(null);
+      setQuizData(null);
+      setQuizAnswers({});
+      setQuizResult(null);
+      const token = localStorage.getItem("access_token");
+      fetch(`http://localhost:8000/api/v2/quizzes/by-subcourse/${selectedSubcourse.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.quiz) {
+            setQuizData(data.quiz);
+          } else {
+            setQuizError("No quiz found for this subcourse.");
+          }
+        })
+        .catch(() => setQuizError("Failed to fetch quiz."))
+        .finally(() => setQuizLoading(false));
+    }
+  }, [showQuizModal, selectedSubcourse]);
+
+  // Handle answer change
+  const handleQuizAnswer = (questionId: string, value: string) => {
+    setQuizAnswers(prev => ({ ...prev, [questionId]: value }));
+  };
+
+  // Handle quiz submit
+  const handleQuizSubmit = async () => {
+    if (!quizData || !quizData._id) return;
+    setQuizSubmitting(true);
+    setQuizResult(null);
+    setQuizError(null);
+    const token = localStorage.getItem("access_token");
+    try {
+      const res = await fetch(`http://localhost:8000/api/v2/quizzes/attempt`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          quiz_id: quizData._id,
+          answers: quizAnswers
+        })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setQuizResult(data);
+      } else {
+        setQuizError(data.detail || "Quiz submission failed.");
+      }
+    } catch (err) {
+      setQuizError("Could not connect to the server.");
+    } finally {
+      setQuizSubmitting(false);
+    }
+  };
+
   if (!traineeState) {
     return <div>Loading...</div>; // Or a more sophisticated loading spinner
   }
@@ -811,6 +975,10 @@ const TraineeDashboard = () => {
               <div className="space-y-3">
                 {/* Placeholder for assignments list */}
                 <div className="text-gray-500">No assignments available yet.</div>
+                {/* DEMO: Re-attempt Test Button (replace with real test data/logic) */}
+                <Button onClick={() => handleReattemptTest("demo-test-id-123")}>
+                  Re-attempt Test
+                </Button>
               </div>
             </div>
           )}
@@ -821,53 +989,32 @@ const TraineeDashboard = () => {
                   <BarChart3 className="h-7 w-7 text-blue-400" />
                   <span className="text-xl font-bold text-blue-500">AI-Generated Analytics Report</span>
                 </div>
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-2xl p-6 mb-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Brain className="h-6 w-6 text-blue-600" />
-                    <h3 className="text-lg font-semibold text-blue-900">AI Insights</h3>
-                  </div>
-                  <div className="space-y-3 text-blue-800">
-                    <p>• <strong>Strong Performance:</strong> Excelling in problem-solving and algorithmic thinking</p>
-                    <p>• <strong>Recommendation:</strong> Python specialization aligns with your analytical strengths</p>
-                    <p>• <strong>Areas for Improvement:</strong> Focus on database optimization techniques</p>
-                    <p>• <strong>Predicted Completion:</strong> On track to complete Phase 1 by next week</p>
-                  </div>
-                </div>
-                <div className="grid lg:grid-cols-2 gap-8">
-                  <div className={`rounded-3xl ${glass} p-6 shadow-xl`}>
-                    <div className="text-lg font-semibold mb-4">Performance Metrics</div>
-                    <div className="space-y-4">
-                      <div className="flex justify-between">
-                        <span>Assignment Completion Rate</span>
-                        <span className="font-semibold">92%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Average Quiz Score</span>
-                        <span className="font-semibold">87%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Time Management</span>
-                        <span className="font-semibold text-green-600">Excellent</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Peer Collaboration</span>
-                        <span className="font-semibold text-blue-600">Above Average</span>
+                {analytics ? (
+                  <>
+                    <div className="mb-4">
+                      <h3 className="font-semibold text-lg mb-2">AI Insights</h3>
+                      <div className="prose max-w-none">
+                        <ReactMarkdown>{analytics.ai_insights?.recommendations || "No insights yet."}</ReactMarkdown>
                       </div>
                     </div>
-                  </div>
-                  <div className={`rounded-3xl ${glass} p-6 shadow-xl`}>
-                    <div className="text-lg font-semibold mb-4">Learning Velocity</div>
-                    <ResponsiveContainer width="100%" height={200}>
-                      <LineChart data={progressData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="week" />
-                        <YAxis />
-                        <Tooltip />
-                        <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={2} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="bg-blue-50 rounded-xl p-4">
+                        <div className="font-semibold">Progress</div>
+                        <div className="text-2xl">{analytics.progress?.overall || 0}%</div>
+                      </div>
+                      <div className="bg-green-50 rounded-xl p-4">
+                        <div className="font-semibold">Average Score</div>
+                        <div className="text-2xl">{analytics.avg_score?.toFixed(2) || 0}%</div>
+                      </div>
+                      <div className="bg-yellow-50 rounded-xl p-4">
+                        <div className="font-semibold">Quiz Pass Rate</div>
+                        <div className="text-2xl">{analytics.quiz_pass_rate?.toFixed(2) || 0}%</div>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div>Loading analytics...</div>
+                )}
               </div>
             </div>
           )}
@@ -879,15 +1026,63 @@ const TraineeDashboard = () => {
         <Dialog open={showQuizModal} onOpenChange={setShowQuizModal}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle>Quiz/Task: {selectedSubcourse.title}</DialogTitle>
+              <DialogTitle>Quiz: {selectedSubcourse.title}</DialogTitle>
               <DialogDescription>
                 Course: {courses.find(c => c.subcourses.some(s => s.id === selectedSubcourse.id))?.title}
               </DialogDescription>
             </DialogHeader>
-            <div className="text-gray-600">Quiz/Task content goes here. (To be implemented in next step.)</div>
-            <DialogFooter>
-              <Button onClick={() => setShowQuizModal(false)}>Close</Button>
-            </DialogFooter>
+            <div className="text-gray-600">
+              {quizLoading && <div>Loading quiz...</div>}
+              {quizError && <div className="text-red-600">{quizError}</div>}
+              {quizData && !quizResult && (
+                <form className="space-y-4" onSubmit={e => { e.preventDefault(); handleQuizSubmit(); }}>
+                  {quizData.questions && quizData.questions.length > 0 ? (
+                    quizData.questions.map((q, idx) => (
+                      <div key={q._id || idx} className="mb-4">
+                        <div className="font-semibold mb-2">{idx + 1}. {q.text}</div>
+                        {q.options && q.options.length > 0 && (
+                          <div className="space-y-1">
+                            {q.options.map((opt, oidx) => (
+                              <label key={oidx} className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name={`question-${q._id}`}
+                                  value={opt}
+                                  checked={quizAnswers[q._id] === opt}
+                                  onChange={() => handleQuizAnswer(q._id, opt)}
+                                  disabled={quizSubmitting}
+                                />
+                                <span>{opt}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div>No questions found in this quiz.</div>
+                  )}
+                  <DialogFooter>
+                    <Button type="submit" disabled={quizSubmitting || Object.keys(quizAnswers).length !== quizData.questions.length}>
+                      {quizSubmitting ? "Submitting..." : "Submit Quiz"}
+                    </Button>
+                    <Button variant="ghost" onClick={() => setShowQuizModal(false)} disabled={quizSubmitting}>
+                      Cancel
+                    </Button>
+                  </DialogFooter>
+                </form>
+              )}
+              {quizResult && (
+                <div className="mt-4">
+                  <div className="font-semibold text-green-700 mb-2">Quiz Submitted!</div>
+                  <div>Score: <span className="font-bold">{quizResult.score ?? "-"}</span></div>
+                  {quizResult.feedback && <div className="mt-2 text-gray-700">Feedback: {quizResult.feedback}</div>}
+                  <DialogFooter>
+                    <Button onClick={() => setShowQuizModal(false)}>Close</Button>
+                  </DialogFooter>
+                </div>
+              )}
+            </div>
           </DialogContent>
         </Dialog>
       )}
@@ -975,6 +1170,34 @@ const TraineeDashboard = () => {
           </DialogContent>
         </Dialog>
       )}
+      {/* Re-attempt Test Modal */}
+      <Dialog open={showReattemptModal} onOpenChange={setShowReattemptModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Short Notes Before Re-attempt</DialogTitle>
+            <DialogDescription>
+              Please review these AI-generated notes before re-attempting your test.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="text-gray-700 min-h-[80px]">
+            {reattemptLoading && <div>Loading short notes...</div>}
+            {reattemptError && <div className="text-red-600">{reattemptError}</div>}
+            {reattemptShortNotes && (
+              <div className="prose max-w-none">
+                <ReactMarkdown>{reattemptShortNotes}</ReactMarkdown>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button onClick={handleProceedToTest} disabled={reattemptLoading}>
+              Proceed to Test
+            </Button>
+            <Button variant="ghost" onClick={() => setShowReattemptModal(false)}>
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TraineeLayout>
   );
 };
