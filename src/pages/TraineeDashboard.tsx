@@ -49,7 +49,6 @@ import {
 import { Fragment } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import dayjs from 'dayjs';
-import TraineeLayout from "@/components/TraineeLayout";
 import { motion, AnimatePresence } from "framer-motion";
 import ReactMarkdown from 'react-markdown';
 
@@ -735,227 +734,225 @@ const TraineeDashboard = () => {
   }
 
   return (
-    <TraineeLayout>
-      <div className="container mx-auto px-6 py-6">
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 mb-12">
-          <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 shadow-xl">
-            <div className="flex items-center gap-2 mb-2">
-              <Target className="h-7 w-7 text-blue-400" />
-              <span className="text-lg font-semibold text-blue-500">Overall Progress</span>
-            </div>
-            <span className="text-3xl font-extrabold mt-2" style={{ color: '#3b82f6' }}>{(traineeState.progress?.overall ?? 0)}%</span>
+    <div className="container mx-auto px-6 py-6">
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 mb-12">
+        <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 shadow-xl">
+          <div className="flex items-center gap-2 mb-2">
+            <Target className="h-7 w-7 text-blue-400" />
+            <span className="text-lg font-semibold text-blue-500">Overall Progress</span>
           </div>
-          <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 shadow-xl">
-            <div className="flex items-center gap-2 mb-2">
-              <BookOpen className="h-7 w-7 text-emerald-400" />
-              <span className="text-lg font-semibold text-emerald-500">Current Phase</span>
-            </div>
-            <span className="text-3xl font-extrabold mt-2 text-emerald-600">Phase {traineeState.phase ?? 1}</span>
-          </div>
-          <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 shadow-xl">
-            <div className="flex items-center gap-2 mb-2">
-              <BarChart3 className="h-7 w-7 text-purple-400" />
-              <span className="text-lg font-semibold text-purple-500">Phase 1 Score</span>
-            </div>
-            <span className="text-3xl font-extrabold mt-2 text-purple-600">{traineeState.score ?? 0}%</span>
-          </div>
-          <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 shadow-xl">
-            <div className="flex items-center gap-2 mb-2">
-              <Calendar className="h-7 w-7 text-orange-400" />
-              <span className="text-lg font-semibold text-orange-500">Days Remaining</span>
-            </div>
-            <span className="text-3xl font-extrabold mt-2" style={{ color: accent2 }}>
-              {(() => {
-                const created = traineeState.created_at ? dayjs(traineeState.created_at) : null;
-                if (!created) return 60;
-                const now = dayjs();
-                const daysElapsed = now.diff(created, 'day');
-                const daysLeft = 60 - daysElapsed;
-                return daysLeft > 0 ? daysLeft : 0;
-              })()}
-            </span>
-          </div>
+          <span className="text-3xl font-extrabold mt-2" style={{ color: '#3b82f6' }}>{(traineeState.progress?.overall ?? 0)}%</span>
         </div>
-
-        {/* Tabs */}
-        <div className="flex justify-center mb-10">
-          <div className="flex gap-4 bg-white/60 backdrop-blur-md rounded-full shadow-lg p-2 border border-orange-100" style={font}>
-            {['overview', 'training', 'assignments', 'analytics'].map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-7 py-2 rounded-full font-semibold text-lg transition-all duration-200 shadow-sm border-2 ${activeTab === tab ? 'bg-gradient-to-r from-orange-500 to-orange-400 text-white border-orange-400 scale-105' : 'bg-white/80 text-orange-500 border-orange-200 hover:bg-orange-50 hover:scale-105'}`}
-                style={{ minWidth: 120 }}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
+        <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 shadow-xl">
+          <div className="flex items-center gap-2 mb-2">
+            <BookOpen className="h-7 w-7 text-emerald-400" />
+            <span className="text-lg font-semibold text-emerald-500">Current Phase</span>
           </div>
+          <span className="text-3xl font-extrabold mt-2 text-emerald-600">Phase {traineeState.phase ?? 1}</span>
         </div>
-        {/* Tab Content with fade/slide transition */}
-        <div className="transition-all duration-500 ease-in-out animate-fadein">
-          {activeTab === 'overview' && (
-            <div className="space-y-8">
-              <div className="grid lg:grid-cols-2 gap-8">
-                {/* Progress Chart */}
-                <div className={`rounded-3xl ${glass} p-8 shadow-xl`}>
-                  <div className="flex items-center gap-3 mb-4">
-                    <BarChart3 className="h-7 w-7 text-blue-400" />
-                    <span className="text-xl font-bold text-blue-500">Weekly Progress</span>
-                  </div>
-                  <div className="w-full h-64 flex items-center justify-center">
-                    {progressData.length === 0 ? (
-                      <span className="text-gray-400 text-lg">No data is available</span>
-                    ) : (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={progressData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="week" />
-                          <YAxis />
-                          <Tooltip />
-                          <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={3} />
-                          <Line type="monotone" dataKey="completion" stroke="#10b981" strokeWidth={3} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-                </div>
-                {/* Skills Assessment */}
-                <div className={`rounded-3xl ${glass} p-8 shadow-xl`}>
-                  <div className="flex items-center gap-3 mb-4">
-                    <Target className="h-7 w-7 text-purple-400" />
-                    <span className="text-xl font-bold text-purple-500">Skills Assessment</span>
-                  </div>
-                  <div className="w-full h-64 flex items-center justify-center">
-                    {skillsData.length === 0 || skillsData.every(s => !s.score || s.score === 0) ? (
-                      <span className="text-gray-400 text-lg">No data is available</span>
-                    ) : (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={skillsData}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="skill" />
-                          <YAxis />
-                          <Tooltip />
-                          <Bar dataKey="score" fill="#6366f1" />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    )}
-                  </div>
-                </div>
-              </div>
-              {/* Upcoming Tasks */}
-              <div className={`rounded-3xl ${glass} p-8 shadow-xl`}>
-                <div className="flex items-center gap-3 mb-4">
-                  <Clock className="h-7 w-7 text-orange-400" />
-                  <span className="text-xl font-bold text-orange-500">Upcoming Tasks</span>
-                </div>
-                <div className="space-y-3">
-                  {tasks.length === 0 ? (
-                    <div className="text-gray-400 text-lg">No tasks to display.</div>
-                  ) : (
-                    tasks.map((task) => (
-                      <div key={task.id || task._id} className="flex items-center justify-between p-3 bg-white/70 rounded-xl shadow-sm">
-                        <div>
-                          <p className="font-medium">{task.title}</p>
-                          <p className="text-sm text-gray-600">Due: {task.due}</p>
-                        </div>
-                        <Badge 
-                          variant={task.priority === 'High' ? 'destructive' : task.priority === 'Medium' ? 'default' : 'secondary'}
-                        >
-                          {task.priority}
-                        </Badge>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-          {activeTab === 'training' && (
-            <div className="space-y-8">
-              <div className="relative min-h-[250px] h-full" style={{ minHeight: '300px' }}>
-                {/* Phase 1 Card */}
-                <Card
-                  className={`rounded-3xl ${glass} p-6 shadow-xl cursor-pointer transition-all duration-500 min-h-[250px] bg-white overflow-hidden
-                    ${expandedPhases[1]
-                      ? 'absolute top-0 left-0 w-full z-20'
-                      : 'relative w-full lg:w-[calc(50%-1rem)] z-10 hover:scale-105'}
-                  `}
-                  style={{
-                    transition: 'all 0.5s cubic-bezier(0.4,0,0.2,1)',
-                    boxShadow: expandedPhases[1] ? '0 8px 32px 0 #f59e4222' : undefined,
-                  }}
-                  onClick={() => !expandedPhases[1] && handleExpand(1)}
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <CheckCircle className="h-7 w-7 text-emerald-400" />
-                    <span className="text-xl font-bold text-emerald-500">Phase 1: Foundation Training</span>
-                  </div>
-                  <div className="mb-4">
-                    <span className="font-medium text-gray-700">Core programming and development fundamentals</span>
-                  </div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-medium">Overall Progress</span>
-                    <span className="text-emerald-600 font-semibold">{traineeState.score}%</span>
-                  </div>
-                  <Progress value={traineeState.score} className="mb-4" />
-                  {expandedPhases[1] && (
-                    <Button variant="ghost" size="icon" className="hover:bg-orange-50 transition-colors duration-200 mb-4" onClick={e => handleCollapse(e, 1)}>
-                      <ArrowLeft className="h-5 w-5" />
-                    </Button>
-                  )}
-                  {expandedPhases[1] && (
-                    <div className="space-y-4 mt-6 w-full p-4">
-                      <div className="flex flex-col gap-4 w-full">
-                        <AnimatePresence initial={false}>
-                          {relevantCourses && relevantCourses.length > 0 ? (
-                            relevantCourses.map((course, index) => {
-                              // Ensure course and course.subcourses are defined before trying to access properties
-                              if (!course || !course.course_id) {
-                                console.warn("Skipping render for course with missing course_id:", course);
-                                return null; // Skip rendering this course if essential data is missing
-                              }
-                              const completedCount = progress.find(p => String(p.course_id) === String(course.course_id))?.completed_subcourses.length || 0;
-                              const total = Array.isArray(course.subcourses) ? course.subcourses.length : 0;
-                              return (
-                                <motion.div
-                                  key={course.course_id} // Essential: course_id must be unique and present
-                                  layoutId={`course-block-${course.course_id}`}
-                                  ref={el => { if (course.course_id) courseRefs.current[course.course_id] = el; }}
-                                  className="p-0 rounded-xl border border-orange-200 bg-white/90 shadow transition-all duration-200 cursor-pointer min-h-[72px] hover:bg-orange-50 hover:shadow-2xl hover:scale-105 hover:-translate-y-1 will-change-transform"
-                                  tabIndex={0}
-                                  whileTap={{ scale: 0.97, boxShadow: '0 8px 32px 0 #f59e4244', backgroundColor: '#fff7f0' }}
-                                  onClick={() => navigate(`/training/course/${course.course_id}`, { state: { courseId: course.course_id, user: traineeState, empId: empId } })}
-                                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate(`/training/course/${course.course_id}`, { state: { courseId: course.course_id, user: traineeState, empId: empId } }); }}
-                                  aria-label={`Open ${course.title || 'Unnamed Course'}`}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <h3 className="text-lg font-semibold group-hover:text-orange-600 transition-colors duration-300">
-                                      {course.title || 'Unnamed Course'}
-                                    </h3>
-                                    <span className="ml-3 text-xs bg-orange-100 text-orange-700 rounded-full px-3 py-0.5 font-semibold">
-                                      {completedCount}/{total} completed
-                                    </span>
-                                  </div>
-                                </motion.div>
-                              );
-                            })
-                          ) : (
-                            <p className="text-gray-500">No courses available for your batch or common to all.</p>
-                          )}
-                        </AnimatePresence>
-                      </div>
-                    </div>
-                  )}
-                </Card>
-                {/* Phase 2 Card and other content would go here */}
-              </div>
-            </div>
-          )}
+        <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 shadow-xl">
+          <div className="flex items-center gap-2 mb-2">
+            <BarChart3 className="h-7 w-7 text-purple-400" />
+            <span className="text-lg font-semibold text-purple-500">Phase 1 Score</span>
+          </div>
+          <span className="text-3xl font-extrabold mt-2 text-purple-600">{traineeState.score ?? 0}%</span>
+        </div>
+        <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 shadow-xl">
+          <div className="flex items-center gap-2 mb-2">
+            <Calendar className="h-7 w-7 text-orange-400" />
+            <span className="text-lg font-semibold text-orange-500">Days Remaining</span>
+          </div>
+          <span className="text-3xl font-extrabold mt-2" style={{ color: accent2 }}>
+            {(() => {
+              const created = traineeState.created_at ? dayjs(traineeState.created_at) : null;
+              if (!created) return 60;
+              const now = dayjs();
+              const daysElapsed = now.diff(created, 'day');
+              const daysLeft = 60 - daysElapsed;
+              return daysLeft > 0 ? daysLeft : 0;
+            })()}
+          </span>
         </div>
       </div>
-    </TraineeLayout>
+
+      {/* Tabs */}
+      <div className="flex justify-center mb-10">
+        <div className="flex gap-4 bg-white/60 backdrop-blur-md rounded-full shadow-lg p-2 border border-orange-100" style={font}>
+          {['overview', 'training', 'assignments', 'analytics'].map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-7 py-2 rounded-full font-semibold text-lg transition-all duration-200 shadow-sm border-2 ${activeTab === tab ? 'bg-gradient-to-r from-orange-500 to-orange-400 text-white border-orange-400 scale-105' : 'bg-white/80 text-orange-500 border-orange-200 hover:bg-orange-50 hover:scale-105'}`}
+              style={{ minWidth: 120 }}
+            >
+              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+      {/* Tab Content with fade/slide transition */}
+      <div className="transition-all duration-500 ease-in-out animate-fadein">
+        {activeTab === 'overview' && (
+          <div className="space-y-8">
+            <div className="grid lg:grid-cols-2 gap-8">
+              {/* Progress Chart */}
+              <div className={`rounded-3xl ${glass} p-8 shadow-xl`}>
+                <div className="flex items-center gap-3 mb-4">
+                  <BarChart3 className="h-7 w-7 text-blue-400" />
+                  <span className="text-xl font-bold text-blue-500">Weekly Progress</span>
+                </div>
+                <div className="w-full h-64 flex items-center justify-center">
+                  {progressData.length === 0 ? (
+                    <span className="text-gray-400 text-lg">No data is available</span>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={progressData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="week" />
+                        <YAxis />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={3} />
+                        <Line type="monotone" dataKey="completion" stroke="#10b981" strokeWidth={3} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+              {/* Skills Assessment */}
+              <div className={`rounded-3xl ${glass} p-8 shadow-xl`}>
+                <div className="flex items-center gap-3 mb-4">
+                  <Target className="h-7 w-7 text-purple-400" />
+                  <span className="text-xl font-bold text-purple-500">Skills Assessment</span>
+                </div>
+                <div className="w-full h-64 flex items-center justify-center">
+                  {skillsData.length === 0 || skillsData.every(s => !s.score || s.score === 0) ? (
+                    <span className="text-gray-400 text-lg">No data is available</span>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={skillsData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="skill" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="score" fill="#6366f1" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+              </div>
+            </div>
+            {/* Upcoming Tasks */}
+            <div className={`rounded-3xl ${glass} p-8 shadow-xl`}>
+              <div className="flex items-center gap-3 mb-4">
+                <Clock className="h-7 w-7 text-orange-400" />
+                <span className="text-xl font-bold text-orange-500">Upcoming Tasks</span>
+              </div>
+              <div className="space-y-3">
+                {tasks.length === 0 ? (
+                  <div className="text-gray-400 text-lg">No tasks to display.</div>
+                ) : (
+                  tasks.map((task) => (
+                    <div key={task.id || task._id} className="flex items-center justify-between p-3 bg-white/70 rounded-xl shadow-sm">
+                      <div>
+                        <p className="font-medium">{task.title}</p>
+                        <p className="text-sm text-gray-600">Due: {task.due}</p>
+                      </div>
+                      <Badge
+                        variant={task.priority === 'High' ? 'destructive' : task.priority === 'Medium' ? 'default' : 'secondary'}
+                      >
+                        {task.priority}
+                      </Badge>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+        {activeTab === 'training' && (
+          <div className="space-y-8">
+            <div className="relative min-h-[250px] h-full" style={{ minHeight: '300px' }}>
+              {/* Phase 1 Card */}
+              <Card
+                className={`rounded-3xl ${glass} p-6 shadow-xl cursor-pointer transition-all duration-500 min-h-[250px] bg-white overflow-hidden
+                  ${expandedPhases[1]
+                    ? 'absolute top-0 left-0 w-full z-20'
+                    : 'relative w-full lg:w-[calc(50%-1rem)] z-10 hover:scale-105'}
+                `}
+                style={{
+                  transition: 'all 0.5s cubic-bezier(0.4,0,0.2,1)',
+                  boxShadow: expandedPhases[1] ? '0 8px 32px 0 #f59e4222' : undefined,
+                }}
+                onClick={() => !expandedPhases[1] && handleExpand(1)}
+              >
+                <div className="flex items-center gap-3 mb-4">
+                  <CheckCircle className="h-7 w-7 text-emerald-400" />
+                  <span className="text-xl font-bold text-emerald-500">Phase 1: Foundation Training</span>
+                </div>
+                <div className="mb-4">
+                  <span className="font-medium text-gray-700">Core programming and development fundamentals</span>
+                </div>
+                <div className="flex justify-between items-center mb-2">
+                  <span className="font-medium">Overall Progress</span>
+                  <span className="text-emerald-600 font-semibold">{traineeState.score}%</span>
+                </div>
+                <Progress value={traineeState.score} className="mb-4" />
+                {expandedPhases[1] && (
+                  <Button variant="ghost" size="icon" className="hover:bg-orange-50 transition-colors duration-200 mb-4" onClick={e => handleCollapse(e, 1)}>
+                    <ArrowLeft className="h-5 w-5" />
+                  </Button>
+                )}
+                {expandedPhases[1] && (
+                  <div className="space-y-4 mt-6 w-full p-4">
+                    <div className="flex flex-col gap-4 w-full">
+                      <AnimatePresence initial={false}>
+                        {relevantCourses && relevantCourses.length > 0 ? (
+                          relevantCourses.map((course, index) => {
+                            // Ensure course and course.subcourses are defined before trying to access properties
+                            if (!course || !course.course_id) {
+                              console.warn("Skipping render for course with missing course_id:", course);
+                              return null; // Skip rendering this course if essential data is missing
+                            }
+                            const completedCount = progress.find(p => String(p.course_id) === String(course.course_id))?.completed_subcourses.length || 0;
+                            const total = Array.isArray(course.subcourses) ? course.subcourses.length : 0;
+                            return (
+                              <motion.div
+                                key={course.course_id} // Essential: course_id must be unique and present
+                                layoutId={`course-block-${course.course_id}`}
+                                ref={el => { if (course.course_id) courseRefs.current[course.course_id] = el; }}
+                                className="p-0 rounded-xl border border-orange-200 bg-white/90 shadow transition-all duration-200 cursor-pointer min-h-[72px] hover:bg-orange-50 hover:shadow-2xl hover:scale-105 hover:-translate-y-1 will-change-transform"
+                                tabIndex={0}
+                                whileTap={{ scale: 0.97, boxShadow: '0 8px 32px 0 #f59e4244', backgroundColor: '#fff7f0' }}
+                                onClick={() => navigate(`/training/course/${course.course_id}`, { state: { courseId: course.course_id, user: traineeState, empId: empId } })}
+                                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate(`/training/course/${course.course_id}`, { state: { courseId: course.course_id, user: traineeState, empId: empId } }); }}
+                                aria-label={`Open ${course.title || 'Unnamed Course'}`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <h3 className="text-lg font-semibold group-hover:text-orange-600 transition-colors duration-300">
+                                    {course.title || 'Unnamed Course'}
+                                  </h3>
+                                  <span className="ml-3 text-xs bg-orange-100 text-orange-700 rounded-full px-3 py-0.5 font-semibold">
+                                    {completedCount}/{total} completed
+                                  </span>
+                                </div>
+                              </motion.div>
+                            );
+                          })
+                        ) : (
+                          <p className="text-gray-500">No courses available for your batch or common to all.</p>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                )}
+              </Card>
+              {/* Phase 2 Card and other content would go here */}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
