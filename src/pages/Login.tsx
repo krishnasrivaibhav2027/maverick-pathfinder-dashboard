@@ -89,7 +89,7 @@ export default function LoginPage() {
           const user = await profileRes.json();
           if (user && user.empId) {
             localStorage.setItem("empId", user.empId);
-            navigate(`/trainee-dashboard/${user.empId}`, { state: { user } });
+            navigate(`/trainee-dashboard/${user.empId}`, { state: { user, password_is_temporary: data.password_is_temporary } });
           } else {
             toast({ variant: "destructive", title: "Login Failed", description: "Could not fetch user profile." });
           }

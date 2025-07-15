@@ -302,14 +302,16 @@ const TraineeDashboard = () => {
   // }, [traineeState]);
 
   useEffect(() => {
-    if (
+    if (location.state?.password_is_temporary) {
+      setShowChangePasswordModal(true);
+    } else if (
       traineeState &&
       (traineeState.password_is_temporary === true ||
         (traineeState.password_is_temporary === undefined && (!traineeState.last_login || traineeState.last_login === '' || traineeState.last_login === null)))
     ) {
       setShowChangePasswordModal(true);
     }
-  }, [traineeState]);
+  }, [traineeState, location.state]);
 
   useEffect(() => {
     if (contentRefs.phase1.current) {

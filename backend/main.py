@@ -308,10 +308,11 @@ async def change_password(request: ChangePasswordRequest):
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # Directly update to new password (no old password check)
+        # Hash the new password before updating
+        hashed_password = hash_password(request.new_password)
         result = await user_collection.update_one(
             {"_id": user["_id"]},
-            {"$set": {"password": request.new_password, "password_is_temporary": False}}
+            {"$set": {"password": hashed_password, "password_is_temporary": False}}
         )
         
         if result.modified_count == 0:

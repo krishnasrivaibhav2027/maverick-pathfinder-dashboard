@@ -61,7 +61,7 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         if not user or not verify_password(password, user["password"]):
             raise HTTPException(status_code=400, detail="Incorrect username or password")
         access_token = create_access_token(data={"sub": user["empId"], "role": user.get("role", "trainee")})
-        return {"access_token": access_token, "token_type": "bearer"}
+        return {"access_token": access_token, "token_type": "bearer", "password_is_temporary": user.get("password_is_temporary", False)}
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Login error: {str(e)}")
 
