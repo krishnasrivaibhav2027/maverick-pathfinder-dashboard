@@ -211,7 +211,7 @@ async def login(login_request: LoginRequest):
                 # User exists but no password provided - this is invalid
                 raise HTTPException(status_code=400, detail="User already exists. Please login with your password.")
             # Existing user login with password
-            if user.get("password") == login_request.password:
+            if pwd_context.verify(login_request.password, user.get("password")):
                 # Update last_login to now
                 await user_collection.update_one({"_id": user["_id"]}, {"$set": {"last_login": datetime.now().isoformat()}})
                 # Return user with updated last_login
@@ -230,10 +230,10 @@ async def login(login_request: LoginRequest):
                     new_trainee = Trainee(
                         name=login_request.name,  # Use provided name instead of AI-generated
                         email=login_request.email,
-                        password=profile["password"],
+                        password=hash_password(profile["password"]),  # Store hashed password
                         empId=profile["empId"],
                         phase=1,
-                        progress=0,
+                        progress={},
                         score=0,
                         status="active",
                         specialization="Pending",
@@ -352,7 +352,9 @@ async def get_trainees():
             data.append(serialize_doc(document))
         return JSONResponse(content=data)
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error fetching trainees: {str(e)}")
+        # Log the error and return an empty array instead of raising an exception
+        print(f"Error fetching trainees: {str(e)}")
+        return JSONResponse(content=[])
 
 @app.get("/trainees/{emp_id}")
 async def get_trainee_by_empid(emp_id: str):
@@ -460,10 +462,10 @@ async def bulk_create_trainees(trainees_data: list = Body(...)):
                 new_trainee = Trainee(
                     name=trainee_info["name"],  # Use provided name
                     email=trainee_info["email"],
-                    password=profile["password"],
+                    password=hash_password(profile["password"]),  # Store hashed password
                     empId=profile["empId"],
                     phase=1,
-                    progress=0,
+                    progress={},
                     score=0,
                     status="active",
                     specialization="Pending",
@@ -628,10 +630,10 @@ async def create_accounts_for_batch(request: dict = Body(...)):
                 new_trainee = Trainee(
                     name=trainee["name"],
                     email=trainee["email"],
-                    password=profile["password"],
+                    password=hash_password(profile["password"]),  # Store hashed password
                     empId=profile["empId"],
                     phase=batch.get("phase", 1),
-                    progress=0,
+                    progress={},
                     score=0,
                     status="active",
                     specialization=batch.get("skill", "Pending"),
@@ -1085,10 +1087,10 @@ async def auto_allocate_and_create_account(payload: dict = Body(...)):
     new_trainee = Trainee(
         name=name,
         email=email,
-        password=profile["password"],
+        password=hash_password(profile["password"]),  # Store hashed password
         empId=profile["empId"],
         phase=1,
-        progress=0,
+        progress={},
         score=0,
         status="active",
         specialization=skill,
@@ -1133,10 +1135,10 @@ async def create_account_for_trainee(payload: dict = Body(...)):
     new_trainee = Trainee(
         name=trainee["name"],
         email=email,
-        password=profile["password"],
+        password=hash_password(profile["password"]),  # Store hashed password
         empId=profile["empId"],
         phase=batch.get("phase", 1),
-        progress=0,
+        progress={},
         score=0,
         status="active",
         specialization=batch.get("skill", "Pending"),

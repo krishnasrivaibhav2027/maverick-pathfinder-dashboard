@@ -28,14 +28,13 @@ class CompletedCourse(BaseModel):
     model_config = {"arbitrary_types_allowed": True}
 
 class Trainee(BaseModel):
-    id: Optional[ObjectId]
     name: str
     email: EmailStr
     password: str
     empId: Optional[str]
     phase: int = 1
     status: str = 'active'
-    progress: Optional[dict] = None  # {phase1: int, phase2: int, overall: int}
+    progress: dict = Field(default_factory=dict)  # {phase1: int, phase2: int, overall: int}
     specialization: Optional[str] = None
     password_is_temporary: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)

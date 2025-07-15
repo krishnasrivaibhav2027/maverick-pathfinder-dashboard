@@ -31,7 +31,7 @@ interface SkillGroup {
   average_progress: number;
 }
 
-interface Trainee {
+export interface Trainee {
   name: string;
   email: string;
   progress?: number;
@@ -209,7 +209,10 @@ const BatchManagement = () => {
         </div>
         <div className="flex flex-row gap-8 flex-wrap mt-2">
           {selectedBatchGroup.map(batch => {
-            const avgProgress = (batch.trainees as Trainee[]).length > 0 ? (batch.trainees as Trainee[]).reduce((acc, t) => acc + (t.progress || 0), 0) / (batch.trainees as Trainee[]).length : 0;
+            const visibleTrainees = batch.trainees.filter(
+              (t: Trainee) => t.empId && t.empId !== '-' && t.empId.trim() !== ''
+            );
+            const avgProgress = visibleTrainees.length > 0 ? visibleTrainees.reduce((acc, t) => acc + ((t as Trainee).progress || 0), 0) / visibleTrainees.length : 0;
             return (
               <div
                 key={batch.skill}
@@ -236,7 +239,7 @@ const BatchManagement = () => {
                     </div>
                     <div className="flex items-center gap-4 mt-2">
                       <Users className="h-5 w-5 text-orange-400 mr-1" />
-                      <span className="text-base font-semibold text-gray-600">{batch.trainees.length} trainees</span>
+                      <span className="text-base font-semibold text-gray-600">{visibleTrainees.length} trainees</span>
                     </div>
                   </div>
                 </button>
@@ -295,7 +298,10 @@ const BatchManagement = () => {
 
   // 4. Trainee list for skill group (batch detail view)
   if (selectedBatch && !selectedSkill && !selectedTrainee) {
-    const avgProgress = (selectedBatch.trainees as Trainee[]).length > 0 ? (selectedBatch.trainees as Trainee[]).reduce((acc, t) => acc + (t.progress || 0), 0) / (selectedBatch.trainees as Trainee[]).length : 0;
+    const avgProgress = (selectedBatch.trainees as Trainee[]).length > 0 ? (selectedBatch.trainees as Trainee[]).reduce((acc, t) => acc + ((t as Trainee).progress || 0), 0) / (selectedBatch.trainees as Trainee[]).length : 0;
+    const visibleTrainees = (selectedBatch.trainees as Trainee[]).filter(
+      t => t.empId && t.empId !== '-' && t.empId.trim() !== ''
+    );
     return (
       <div className="w-full h-full flex flex-col items-start justify-start p-8">
         {/* Header */}
@@ -335,7 +341,7 @@ const BatchManagement = () => {
               </tr>
             </thead>
             <tbody>
-              {(selectedBatch.trainees as Trainee[]).map((trainee, idx) => (
+              {visibleTrainees.map((trainee, idx) => (
                 <tr key={trainee.email} className={idx % 2 === 0 ? "bg-white/90" : "bg-orange-50/60"}>
                   <td className="py-3 px-4 text-center align-middle" style={{width: '80px'}}>
                     <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center font-bold text-orange-500 text-lg shadow mx-auto">

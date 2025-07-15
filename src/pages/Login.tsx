@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 import { Button } from "@/components/ui/button";
@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/components/ui/use-toast";
 import { sendEmailJs } from "@/lib/emailjs";
-import { Rocket, Eye, EyeOff } from 'lucide-react';
+import { Rocket, Eye, EyeOff, Sun, Moon } from 'lucide-react';
 
 const accent = "#FF512F";
 const accent2 = "#F09819";
@@ -30,6 +30,22 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme') === 'dark';
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [darkMode]);
 
   // Helper to detect role from Employee-ID
   const detectRole = (empId: string) => {
@@ -117,7 +133,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4" style={{ background: "linear-gradient(135deg, #f8fafc 0%, #fff7f0 100%)" }}>
+    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-background text-foreground transition-colors duration-300">
+      {/* Dark mode toggle top right */}
+      <div className="absolute top-4 right-4 z-10">
+        <Button
+          variant="ghost"
+          className="rounded-full p-2"
+          aria-label="Toggle dark mode"
+          onClick={() => setDarkMode((d) => !d)}
+        >
+          {darkMode ? <Sun className="h-5 w-5 text-yellow-400" /> : <Moon className="h-5 w-5 text-gray-700 dark:text-gray-200" />}
+        </Button>
+      </div>
       <div className="w-full max-w-md mx-auto">
         <div className="flex flex-col items-center mb-10">
           <span className="mb-2">
@@ -142,7 +169,7 @@ export default function LoginPage() {
             <span style={{ display: 'block', fontWeight: 900, fontSize: '1.2em', marginTop: '-0.2em' }}>Dashboard</span>
           </h1>
         </div>
-        <div className={`relative ${glass} rounded-3xl p-2`} style={{ boxShadow: `0 8px 32px 0 ${accent}22` }}>
+        <div className="rounded-2xl p-8 shadow-xl bg-white transition-colors duration-300">
           {/* Tabs */}
           <div className="flex justify-center gap-4 mb-6 mt-4">
             <button

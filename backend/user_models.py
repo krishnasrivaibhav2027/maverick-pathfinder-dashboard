@@ -2,7 +2,6 @@ from pydantic import BaseModel, Field, EmailStr, validator
 from typing import Optional, List, Dict, Any
 
 class Trainee(BaseModel):
-    id: Optional[int] = Field(None, description="Unique identifier")
     name: str
     email: EmailStr
     password: str

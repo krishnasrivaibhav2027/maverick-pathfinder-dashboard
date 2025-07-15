@@ -23,7 +23,9 @@ import {
   ChevronDown,
   X,
   Bell,
-  Trash2
+  Trash2,
+  Sun,
+  Moon
 } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts';
@@ -31,10 +33,11 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import BatchManagement from "@/components/BatchManagement";
 import TraineeOnboarding from "@/components/TraineeOnboarding";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/use-toast";
 import * as Popover from '@radix-ui/react-popover';
 import { motion, AnimatePresence } from 'framer-motion';
+import type { Trainee } from "../components/BatchManagement";
 
 // Local type for batch
 interface BatchForCount {
@@ -156,13 +159,37 @@ const AdminDashboard = () => {
 
   const [open, setOpen] = useState(false);
 
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme') === 'dark';
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [darkMode]);
+
   // Add a refresh function for active batches
   const fetchActiveBatchCount = () => {
     fetch("http://localhost:8000/batches")
       .then(res => res.json())
       .then((batches) => {
         const count = Array.isArray(batches)
-          ? batches.filter((b: BatchForCount) => b.phase === 1 && !b.is_next_batch).length
+          ? batches.filter((b: BatchForCount & { trainees?: Partial<Trainee>[] }) => {
+              const visibleTrainees = Array.isArray(b.trainees)
+                ? b.trainees.filter(
+                    (t: Partial<Trainee>) => t.empId && t.empId !== '-' && t.empId.trim() !== ''
+                  )
+                : [];
+              return b.phase === 1 && !b.is_next_batch && visibleTrainees.length > 0;
+            }).length
           : 0;
         setActiveBatchCount(count);
       });
@@ -262,7 +289,8 @@ const AdminDashboard = () => {
   // Use API weeklyProgress or fallback to empty
   const weeklyProgress = dashboardStats?.weeklyProgress || [];
 
-  const filteredTrainees = trainees.filter(trainee => 
+  const safeTrainees = Array.isArray(trainees) ? trainees : [];
+  const filteredTrainees = safeTrainees.filter(trainee => 
     trainee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (trainee.empId && trainee.empId.toLowerCase().includes(searchTerm.toLowerCase()))
   );
@@ -488,9 +516,9 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: "linear-gradient(135deg, #f8fafc 0%, #fff7f0 100%)" }}>
+    <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
       {/* Header */}
-      <div className={`w-full ${glass} py-4 px-0 mb-8`} style={{ boxShadow: `0 8px 32px 0 ${accent}22` }}>
+      <div className="w-full bg-white py-4 px-0 mb-8 shadow-lg">
         <div className="container mx-auto flex justify-between items-center" style={font}>
           <div className="flex items-center gap-4">
             <span className="rounded-full bg-gradient-to-tr from-orange-400 to-orange-500 p-3 shadow-lg">
@@ -554,6 +582,14 @@ const AdminDashboard = () => {
             >
               <LogOut className="h-5 w-5" /> Logout
             </Button>
+            <Button
+              variant="ghost"
+              className="ml-2 rounded-full p-2"
+              aria-label="Toggle dark mode"
+              onClick={() => setDarkMode((d) => !d)}
+            >
+              {darkMode ? <Sun className="h-5 w-5 text-yellow-400" /> : <Moon className="h-5 w-5 text-gray-700 dark:text-gray-200" />}
+            </Button>
           </div>
         </div>
       </div>
@@ -561,14 +597,14 @@ const AdminDashboard = () => {
       <div className="container mx-auto px-6 py-6">
         {/* Quick Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 mb-12">
-          <div className={`rounded-3xl ${glass} p-6 flex flex-col items-center transition-transform hover:scale-105`} style={{ boxShadow: `0 8px 32px 0 #3b82f622` }}>
+          <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 shadow-xl">
             <div className="flex items-center gap-2 mb-2">
               <Users className="h-7 w-7 text-orange-400" />
               <span className="text-lg font-semibold text-orange-500">Total Trainees</span>
             </div>
             <span className="text-3xl font-extrabold mt-2" style={{ color: accent }}>{overallStats.totalTrainees}</span>
           </div>
-          <div className={`rounded-3xl ${glass} p-6 flex flex-col items-center transition-transform hover:scale-105 cursor-pointer`} style={{ boxShadow: `0 8px 32px 0 #10b98122` }} onClick={() => navigate('/admin/batches')}>
+          <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 cursor-pointer shadow-xl" onClick={() => navigate('/admin/batches')}>
             <div className="flex items-center gap-2 mb-2">
               <CheckCircle className="h-7 w-7 text-emerald-400" />
               <span className="text-lg font-semibold text-emerald-500">Active Batches</span>
@@ -576,14 +612,14 @@ const AdminDashboard = () => {
             <span className="text-3xl font-extrabold mt-2 text-emerald-600">{activeBatchCount}</span>
             <span className="text-xs text-gray-500 mt-1">Phase 1 Underway</span>
           </div>
-          <div className={`rounded-3xl ${glass} p-6 flex flex-col items-center transition-transform hover:scale-105 cursor-pointer`} style={{ boxShadow: `0 8px 32px 0 #a78bfa22` }} onClick={() => navigate('/admin/next-batch')}>
+          <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 cursor-pointer shadow-xl" onClick={() => navigate('/admin/next-batch')}>
             <div className="flex items-center gap-2 mb-2">
               <AlertCircle className="h-7 w-7 text-orange-400" />
               <span className="text-lg font-semibold text-orange-500">Next Batch (Overflow)</span>
             </div>
             <span className="text-base text-gray-500 mb-2">Trainees: {overflowBatch ? overflowBatch.trainees.length : 0}</span>
           </div>
-          <div className={`rounded-3xl ${glass} p-6 flex flex-col items-center transition-transform hover:scale-105`} style={{ boxShadow: `0 8px 32px 0 #f59e0b22` }}>
+          <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 shadow-xl">
             <div className="flex items-center gap-2 mb-2">
               <BarChart3 className="h-7 w-7 text-orange-400" />
               <span className="text-lg font-semibold text-orange-500">Average Score</span>
@@ -703,6 +739,7 @@ const AdminDashboard = () => {
                   <DialogContent className="max-w-2xl">
                     <DialogHeader>
                       <DialogTitle>All Activities</DialogTitle>
+                      <DialogDescription>View all recent activities.</DialogDescription>
                       <DialogClose asChild>
                         <button className="absolute top-4 right-4 text-gray-400 hover:text-gray-600">&times;</button>
                       </DialogClose>
@@ -1008,6 +1045,7 @@ const AdminDashboard = () => {
                     <DialogContent className="rounded-3xl bg-white/70 backdrop-blur-2xl shadow-2xl border border-white/40 p-10 max-w-md">
                       <DialogHeader>
                         <DialogTitle className="text-2xl font-bold text-orange-500 mb-4 drop-shadow-sm">Extracted Resume Info</DialogTitle>
+                        <DialogDescription>Review and approve extracted resume details.</DialogDescription>
                       </DialogHeader>
                       <div className="space-y-2 text-base text-gray-800">
                         <div><span className="font-semibold">Name:</span> {extractedInfo.name}</div>

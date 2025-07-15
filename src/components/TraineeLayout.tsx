@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Brain, User, ChevronDown, KeyRound, LogOut } from "lucide-react";
+import { Brain, User, ChevronDown, KeyRound, LogOut, Sun, Moon } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
@@ -26,6 +26,12 @@ export default function TraineeLayout({ children }: { children: React.ReactNode 
   const [isChanging, setIsChanging] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme') === 'dark';
+    }
+    return false;
+  });
 
   useEffect(() => {
     let trainee = {};
@@ -36,6 +42,32 @@ export default function TraineeLayout({ children }: { children: React.ReactNode 
     }
     setTraineeState(trainee);
   }, []);
+
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [darkMode]);
+
+  useEffect(() => {
+    // Open set password modal if first login (password is temporary or just created)
+    if (traineeState && (traineeState.password_is_temporary || isFirstLogin(traineeState))) {
+      setShowChangePasswordModal(true);
+    }
+  }, [traineeState]);
+
+  // Helper to determine first login based on created_at (e.g., within 5 minutes of now)
+  function isFirstLogin(trainee) {
+    if (!trainee || !trainee.created_at) return false;
+    const created = new Date(trainee.created_at).getTime();
+    const now = Date.now();
+    // Consider first login if account created within last 10 minutes
+    return now - created < 10 * 60 * 1000;
+  }
 
   // Password requirement checks
   const pwChecks = [
@@ -93,66 +125,76 @@ export default function TraineeLayout({ children }: { children: React.ReactNode 
   };
 
   return (
-    <div className="min-h-screen" style={{ background: "linear-gradient(135deg, #f8fafc 0%, #fff7f0 100%)" }}>
+    <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
       {/* Header */}
-      <div className={`w-full ${glass} py-4 px-0 mb-8 fixed top-0 left-0 z-50`} style={{ boxShadow: `0 8px 32px 0 ${accent}22`, width: '100%' }}>
+      <div className="w-full bg-white py-4 px-0 mb-8 fixed top-0 left-0 z-50 shadow-lg" style={{ width: '100%' }}>
         <div className="container mx-auto flex justify-between items-center" style={font}>
-          <div className="flex items-center gap-4">
-            <span className="rounded-full bg-gradient-to-tr from-orange-400 to-orange-500 p-3 shadow-lg">
-              <Brain className="h-7 w-7 text-white" />
-            </span>
-            <div>
-              <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: accent, letterSpacing: '-0.04em' }}>Mavericks Training</h1>
-              {traineeState && traineeState.name && <p className="text-base text-gray-500 font-medium">Welcome back, {traineeState.name} ({traineeState.empId})</p>}
+          <div>
+            <div className="flex items-center gap-4">
+              <span className="rounded-full bg-gradient-to-tr from-orange-400 to-orange-500 p-3 shadow-lg">
+                <Brain className="h-7 w-7 text-white" />
+              </span>
+              <div>
+                <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: accent, letterSpacing: '-0.04em' }}>Mavericks Training</h1>
+                {traineeState && traineeState.name && <p className="text-base text-gray-500 font-medium">Welcome back, {traineeState.name} ({traineeState.empId})</p>}
+              </div>
             </div>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="rounded-full flex items-center gap-2 border-orange-200 text-orange-500 hover:bg-orange-50 hover:text-orange-600 bg-white/80" style={font}>
-                <User className="h-4 w-4" />
-                <span>{traineeState?.name}</span>
-                <ChevronDown className="h-4 w-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="rounded-xl bg-white/80 shadow-lg border border-orange-100 p-2 min-w-[200px]">
-              <DropdownMenuLabel className="text-lg font-bold text-gray-900 mb-2">My Account</DropdownMenuLabel>
-              <DropdownMenuSeparator className="bg-orange-100" />
-              <DropdownMenuItem
-                onClick={() => setShowChangePasswordModal(true)}
-                className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-orange-50 transition-colors text-base text-gray-800 group"
-              >
-                <KeyRound className="h-5 w-5 text-orange-400 group-hover:text-orange-500 transition" />
-                <span>Change Password</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  localStorage.removeItem('empId');
-                  localStorage.removeItem('is_admin');
-                  localStorage.removeItem('admin_name');
-                  localStorage.removeItem('traineeState');
-                  navigate('/');
-                }}
-                className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-orange-50 transition-colors text-base text-gray-800 group"
-              >
-                <LogOut className="h-5 w-5 text-orange-400 group-hover:text-orange-500 transition" />
-                <span>Logout</span>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="flex items-center gap-4">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="rounded-full flex items-center gap-2 border-orange-200 text-orange-500 hover:bg-orange-50 hover:text-orange-600 bg-white/80" style={font}>
+                  <User className="h-4 w-4" />
+                  <span>{traineeState?.name}</span>
+                  <ChevronDown className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="rounded-xl bg-white/80 shadow-lg border border-orange-100 p-2 min-w-[200px]">
+                <DropdownMenuLabel className="text-lg font-bold text-gray-900 mb-2">My Account</DropdownMenuLabel>
+                <DropdownMenuSeparator className="bg-orange-100" />
+                <DropdownMenuItem
+                  onClick={() => setShowChangePasswordModal(true)}
+                  className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-orange-50 transition-colors text-base text-gray-800 group"
+                >
+                  <KeyRound className="h-5 w-5 text-orange-400 group-hover:text-orange-500 transition" />
+                  <span>Change Password</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    localStorage.removeItem('empId');
+                    localStorage.removeItem('is_admin');
+                    localStorage.removeItem('admin_name');
+                    localStorage.removeItem('traineeState');
+                    navigate('/');
+                  }}
+                  className="flex items-center gap-3 px-4 py-2 rounded-lg hover:bg-orange-50 transition-colors text-base text-gray-800 group"
+                >
+                  <LogOut className="h-5 w-5 text-orange-400 group-hover:text-orange-500 transition" />
+                  <span>Logout</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button
+              variant="ghost"
+              className="ml-2 rounded-full p-2"
+              aria-label="Toggle dark mode"
+              onClick={() => setDarkMode((d) => !d)}
+            >
+              {darkMode ? <Sun className="h-5 w-5 text-yellow-400" /> : <Moon className="h-5 w-5 text-gray-700 dark:text-gray-200" />}
+            </Button>
+          </div>
         </div>
       </div>
-      <div className="container mx-auto px-6 py-8" style={{ paddingTop: '110px' }}>
+      <main className="pt-32 pb-8 px-4 w-full max-w-7xl mx-auto">
         {children}
-      </div>
+      </main>
       {/* Password change modal rendered globally for layout */}
       {showChangePasswordModal && (
         <Dialog open={showChangePasswordModal} onOpenChange={setShowChangePasswordModal}>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Change Password</DialogTitle>
-              <DialogDescription>
-                Please enter your new password below.
-              </DialogDescription>
+              <DialogDescription>Please enter your new password below.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               <div>
