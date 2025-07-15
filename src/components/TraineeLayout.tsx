@@ -10,6 +10,7 @@ import { Eye, EyeOff } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const accent = "#FF512F";
+const accent2 = "#F09819";
 const glass = "bg-white/60 backdrop-blur-md shadow-2xl border border-white/30";
 const font = { fontFamily: 'Inter, ui-rounded, system-ui, sans-serif' };
 
@@ -127,17 +128,19 @@ export default function TraineeLayout({ children }: { children: React.ReactNode 
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
       {/* Header */}
-      <div className="w-full bg-white py-4 px-0 mb-8 fixed top-0 left-0 z-50 shadow-lg" style={{ width: '100%' }}>
+      <div className="w-full bg-white py-4 px-0 mb-8 shadow-lg">
         <div className="container mx-auto flex justify-between items-center" style={font}>
-          <div>
-            <div className="flex items-center gap-4">
-              <span className="rounded-full bg-gradient-to-tr from-orange-400 to-orange-500 p-3 shadow-lg">
-                <Brain className="h-7 w-7 text-white" />
-              </span>
-              <div>
-                <h1 className="text-2xl font-extrabold tracking-tight" style={{ color: accent, letterSpacing: '-0.04em' }}>Mavericks Training</h1>
-                {traineeState && traineeState.name && <p className="text-base text-gray-500 font-medium">Welcome back, {traineeState.name} ({traineeState.empId})</p>}
-              </div>
+          <div className="flex items-center gap-4">
+            <span className="rounded-full bg-gradient-to-tr from-orange-400 to-orange-500 p-3 shadow-lg">
+              <Brain className="h-7 w-7 text-white" />
+            </span>
+            <div>
+              <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: accent, letterSpacing: '-0.04em' }}>Mavericks Training</h1>
+              {traineeState && traineeState.name && (
+                <p className="text-base mt-1 font-semibold" style={{ color: accent2 }}>
+                  Welcome, <span className="text-orange-500 font-bold uppercase">{traineeState.name}</span> ({traineeState.empId})
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -185,7 +188,7 @@ export default function TraineeLayout({ children }: { children: React.ReactNode 
           </div>
         </div>
       </div>
-      <main className="pt-32 pb-8 px-4 w-full max-w-7xl mx-auto" style={{paddingTop: '10rem'}}>
+      <main className="pt-32 pb-8 px-4 w-full max-w-7xl mx-auto">
         {children}
       </main>
       {/* Password change modal rendered globally for layout */}

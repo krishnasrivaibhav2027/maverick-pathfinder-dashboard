@@ -736,66 +736,65 @@ const TraineeDashboard = () => {
 
   return (
     <TraineeLayout>
-      <div className="min-h-screen" style={{ background: "linear-gradient(135deg, #f8fafc 0%, #fff7f0 100%)" }}>
-        <div className="container mx-auto px-6 py-8">
-          {/* Quick Stats */}
-          <div className="grid md:grid-cols-4 gap-8 mb-12">
-            <div className={`rounded-3xl ${glass} p-6 flex flex-col items-center transition-transform hover:scale-105`} style={{ boxShadow: `0 8px 32px 0 #3b82f622` }}>
-              <div className="flex items-center gap-2 mb-2">
-                <Target className="h-7 w-7 text-blue-400" />
-                <span className="text-lg font-semibold text-blue-500">Overall Progress</span>
-              </div>
-              <span className="text-3xl font-extrabold mt-2 text-blue-600">{(traineeState.progress?.overall ?? 0)}%</span>
+      <div className="container mx-auto px-6 py-6">
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 mb-12">
+          <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 shadow-xl">
+            <div className="flex items-center gap-2 mb-2">
+              <Target className="h-7 w-7 text-blue-400" />
+              <span className="text-lg font-semibold text-blue-500">Overall Progress</span>
             </div>
-            <div className={`rounded-3xl ${glass} p-6 flex flex-col items-center transition-transform hover:scale-105`} style={{ boxShadow: `0 8px 32px 0 #10b98122` }}>
-              <div className="flex items-center gap-2 mb-2">
-                <BookOpen className="h-7 w-7 text-emerald-400" />
-                <span className="text-lg font-semibold text-emerald-500">Current Phase</span>
-              </div>
-              <span className="text-3xl font-extrabold mt-2 text-emerald-600">Phase {traineeState.phase ?? 1}</span>
-            </div>
-            <div className={`rounded-3xl ${glass} p-6 flex flex-col items-center transition-transform hover:scale-105`} style={{ boxShadow: `0 8px 32px 0 #a78bfa22` }}>
-              <div className="flex items-center gap-2 mb-2">
-                <BarChart3 className="h-7 w-7 text-purple-400" />
-                <span className="text-lg font-semibold text-purple-500">Phase 1 Score</span>
-              </div>
-              <span className="text-3xl font-extrabold mt-2 text-purple-600">{traineeState.score ?? 0}%</span>
-            </div>
-            <div className={`rounded-3xl ${glass} p-6 flex flex-col items-center transition-transform hover:scale-105`} style={{ boxShadow: `0 8px 32px 0 #f59e0b22` }}>
-              <div className="flex items-center gap-2 mb-2">
-                <Calendar className="h-7 w-7 text-orange-400" />
-                <span className="text-lg font-semibold text-orange-500">Days Remaining</span>
-              </div>
-              <span className="text-3xl font-extrabold mt-2" style={{ color: accent2 }}>
-                {(() => {
-                  const created = traineeState.created_at ? dayjs(traineeState.created_at) : null;
-                  if (!created) return 60;
-                  const now = dayjs();
-                  const daysElapsed = now.diff(created, 'day');
-                  const daysLeft = 60 - daysElapsed;
-                  return daysLeft > 0 ? daysLeft : 0;
-                })()}
-              </span>
-            </div>
+            <span className="text-3xl font-extrabold mt-2" style={{ color: '#3b82f6' }}>{(traineeState.progress?.overall ?? 0)}%</span>
           </div>
-
-          {/* Tabs */}
-          <div className="flex justify-center mb-10">
-            <div className="flex gap-4 bg-white/60 backdrop-blur-md rounded-full shadow-lg p-2" style={font}>
-              {['overview', 'training', 'assignments', 'analytics'].map(tab => (
-                <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-7 py-2 rounded-full font-semibold text-lg transition-all duration-200 shadow-sm border-2 ${activeTab === tab ? 'bg-gradient-to-r from-orange-500 to-orange-400 text-white border-orange-400 scale-105' : 'bg-white/80 text-orange-500 border-orange-200 hover:bg-orange-50 hover:scale-105'}`}
-                  style={{ minWidth: 120 }}
-                >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </button>
-              ))}
+          <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 shadow-xl">
+            <div className="flex items-center gap-2 mb-2">
+              <BookOpen className="h-7 w-7 text-emerald-400" />
+              <span className="text-lg font-semibold text-emerald-500">Current Phase</span>
             </div>
+            <span className="text-3xl font-extrabold mt-2 text-emerald-600">Phase {traineeState.phase ?? 1}</span>
           </div>
+          <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 shadow-xl">
+            <div className="flex items-center gap-2 mb-2">
+              <BarChart3 className="h-7 w-7 text-purple-400" />
+              <span className="text-lg font-semibold text-purple-500">Phase 1 Score</span>
+            </div>
+            <span className="text-3xl font-extrabold mt-2 text-purple-600">{traineeState.score ?? 0}%</span>
+          </div>
+          <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 shadow-xl">
+            <div className="flex items-center gap-2 mb-2">
+              <Calendar className="h-7 w-7 text-orange-400" />
+              <span className="text-lg font-semibold text-orange-500">Days Remaining</span>
+            </div>
+            <span className="text-3xl font-extrabold mt-2" style={{ color: accent2 }}>
+              {(() => {
+                const created = traineeState.created_at ? dayjs(traineeState.created_at) : null;
+                if (!created) return 60;
+                const now = dayjs();
+                const daysElapsed = now.diff(created, 'day');
+                const daysLeft = 60 - daysElapsed;
+                return daysLeft > 0 ? daysLeft : 0;
+              })()}
+            </span>
+          </div>
+        </div>
 
-          {/* Tab Content */}
+        {/* Tabs */}
+        <div className="flex justify-center mb-10">
+          <div className="flex gap-4 bg-white/60 backdrop-blur-md rounded-full shadow-lg p-2 border border-orange-100" style={font}>
+            {['overview', 'training', 'assignments', 'analytics'].map(tab => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-7 py-2 rounded-full font-semibold text-lg transition-all duration-200 shadow-sm border-2 ${activeTab === tab ? 'bg-gradient-to-r from-orange-500 to-orange-400 text-white border-orange-400 scale-105' : 'bg-white/80 text-orange-500 border-orange-200 hover:bg-orange-50 hover:scale-105'}`}
+                style={{ minWidth: 120 }}
+              >
+                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+        {/* Tab Content with fade/slide transition */}
+        <div className="transition-all duration-500 ease-in-out animate-fadein">
           {activeTab === 'overview' && (
             <div className="space-y-8">
               <div className="grid lg:grid-cols-2 gap-8">
@@ -954,7 +953,6 @@ const TraineeDashboard = () => {
               </div>
             </div>
           )}
-          {/* Add closing tags for any other open JSX blocks here */}
         </div>
       </div>
     </TraineeLayout>
