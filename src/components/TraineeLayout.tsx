@@ -188,7 +188,7 @@ export default function TraineeLayout({ children }: { children: React.ReactNode 
           </div>
         </div>
       </div>
-      <main className="pt-32 pb-8 px-4 w-full max-w-7xl mx-auto">
+      <main className="pt-8 pb-8 px-4 w-full max-w-7xl mx-auto">
         {children}
       </main>
       {/* Password change modal rendered globally for layout */}
