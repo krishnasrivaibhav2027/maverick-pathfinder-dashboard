@@ -1,5 +1,5 @@
 from db import get_database
-from .schemas import Trainee, Course, Subcourse, Quiz, Test
+from .schemas import Trainee, Course, Subcourse, Quiz, Test, Batch
 from bson import ObjectId
 
 # Get the database instance
@@ -9,7 +9,36 @@ _db = get_database()
 async def create_trainee(trainee: Trainee):
     doc = trainee.dict(by_alias=True, exclude_unset=True)
     result = await _db.trainees.insert_one(doc)
-    return str(result.inserted_id)
+    trainee_id = result.inserted_id
+
+    # Prepare embedded trainee object for batch
+    embedded_trainee = {
+        'name': doc.get('name'),
+        'email': doc.get('email'),
+        'empId': doc.get('empId'),
+        'phase': doc.get('phase', 1),
+        'status': doc.get('status', 'active'),
+        'specialization': doc.get('specialization'),
+        'progress': doc.get('progress', {}),
+        'created_at': doc.get('created_at'),
+        # Add more fields as needed
+    }
+
+    # Assign to a batch (phase 1, is_next_batch=False)
+    batch = await _db.batches.find_one({'phase': 1, 'is_next_batch': False})
+    if batch:
+        await _db.batches.update_one({'_id': batch['_id']}, {'$push': {'trainees': embedded_trainee}})
+    else:
+        from datetime import datetime
+        batch_doc = {
+            'batch_id': str(trainee_id),
+            'phase': 1,
+            'trainees': [embedded_trainee],
+            'is_next_batch': False,
+            'created_at': datetime.utcnow()
+        }
+        await _db.batches.insert_one(batch_doc)
+    return str(trainee_id)
 
 async def get_user_by_empid(emp_id: str):
     # This function now checks both trainees and admins collections
@@ -92,4 +121,44 @@ async def update_test(test_id: str, update_data: dict):
     await _db.tests.update_one({'_id': ObjectId(test_id)}, {'$set': update_data})
 
 async def delete_test(test_id: str):
-    await _db.tests.delete_one({'_id': ObjectId(test_id)}) 
+    await _db.tests.delete_one({'_id': ObjectId(test_id)})
+
+# --- Batch CRUD ---
+async def create_batch(batch: Batch):
+    doc = batch.dict(by_alias=True, exclude_unset=True)
+    result = await _db.batches.insert_one(doc)
+    return str(result.inserted_id)
+
+async def get_batch_by_id(batch_id: str):
+    doc = await _db.batches.find_one({'batch_id': batch_id})
+    return Batch(**doc) if doc else None
+
+async def get_all_batches():
+    batches_cursor = _db.batches.find({})
+    batches = []
+    async for batch in batches_cursor:
+        trainee_ids = batch.get('trainees', [])
+        trainees = []
+        if trainee_ids:
+            # Ensure all IDs are ObjectId type
+            object_ids = [ObjectId(tid) if not isinstance(tid, ObjectId) else tid for tid in trainee_ids]
+            trainees_cursor = _db.trainees.find({'_id': {'$in': object_ids}})
+            async for trainee in trainees_cursor:
+                trainees.append({
+                    'name': trainee.get('name'),
+                    'empId': trainee.get('empId'),
+                    'email': trainee.get('email'),
+                    'status': trainee.get('status'),
+                    'phase': trainee.get('phase'),
+                    'progress': trainee.get('progress'),
+                    # Add more fields as needed
+                })
+        batch['trainees'] = trainees
+        batches.append(Batch(**batch))
+    return batches
+
+async def update_batch(batch_id: str, update_data: dict):
+    await _db.batches.update_one({'batch_id': batch_id}, {'$set': update_data})
+
+async def delete_batch(batch_id: str):
+    await _db.batches.delete_one({'batch_id': batch_id}) 

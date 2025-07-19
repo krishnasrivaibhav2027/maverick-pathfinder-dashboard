@@ -1,3 +1,4 @@
+from itertools import batched
 from fastapi import FastAPI, HTTPException, Body, UploadFile, File, APIRouter, Depends, Path, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
@@ -478,6 +479,11 @@ async def bulk_create_trainees(trainees_data: list = Body(...)):
                 print(f"💾 Storing trainee in database: {profile['empId']}")
                 result = await db.trainees.insert_one(new_trainee.model_dump())
                 if result.inserted_id:
+                    # Update the batch trainee entry with the generated empId
+                    await db.batches.update_one(
+                        {"_id": ObjectId(batched), "trainees.email": trainee_info["email"]},
+                        {"$set": {"trainees.$.empId": profile["empId"]}}
+                    )
                     # Prepare email data for frontend to send via EmailJS
                     print(f"📧 Preparing email data for {trainee_info['email']}")
                     email_result = await send_welcome_email_smtp(
@@ -550,8 +556,8 @@ async def upload_resumes(file: UploadFile = File(...)):
             resume_files = [f for f in zip_file.namelist() if f.lower().endswith('.pdf') or f.lower().endswith('.docx')]
             if not resume_files:
                 raise HTTPException(status_code=400, detail="No PDF or DOCX files found in zip")
-                for resume_name in resume_files:
-                        resume_bytes = zip_file.read(resume_name)
+            for resume_name in resume_files:
+                resume_bytes = zip_file.read(resume_name)
                 upload_id = str(uuid.uuid4())
                 resume_cache[upload_id] = {
                     'filename': resume_name,
@@ -612,6 +618,8 @@ async def create_accounts_for_batch(request: dict = Body(...)):
         batch = await db.batches.find_one({"_id": ObjectId(batch_id)})
         if not batch:
             raise HTTPException(status_code=404, detail="Batch not found")
+        batch_id = str(batch["_id"])
+        batch["_id"] = batch_id
         if batch.get("accounts_created"):
             return {"status": "already_created", "message": "Accounts already created for this batch."}
         created_trainees = []
@@ -643,6 +651,11 @@ async def create_accounts_for_batch(request: dict = Body(...)):
                 )
                 result = await db.trainees.insert_one(new_trainee.model_dump())
                 if result.inserted_id:
+                    # Update the batch trainee entry with the generated empId
+                    await db.batches.update_one(
+                        {"_id": ObjectId(batch_id), "trainees.email": trainee["email"]},
+                        {"$set": {"trainees.$.empId": profile["empId"]}}
+                    )
                     email_result = await send_welcome_email_smtp(
                         trainee["email"],
                         trainee["name"],
@@ -692,7 +705,9 @@ async def get_batch(batch_id: str):
     batch = await db.batches.find_one({"_id": ObjectId(batch_id)})
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
-    batch["_id"] = str(batch["_id"])
+    batch_id = str(batch["_id"])
+    batch["_id"] = batch_id
+    batch["trainees"] = [t if isinstance(t, dict) else {} for t in batch.get("trainees", [])]
     return batch
 
 @router.get("/batches")
@@ -700,7 +715,8 @@ async def list_batches():
     batches = []
     cursor = db.batches.find()
     async for batch in cursor:
-        batch["_id"] = str(batch["_id"])
+        batch_id = str(batch["_id"])
+        batch["_id"] = batch_id
         batches.append(batch)
     return batches
 
@@ -709,17 +725,20 @@ async def list_batches_by_phase(phase: int):
     batches = []
     cursor = db.batches.find({"phase": phase})
     async for batch in cursor:
-        batch["_id"] = str(batch["_id"])
+        batch_id = str(batch["_id"])
+        batch["_id"] = batch_id
+        batch["trainees"] = [t if isinstance(t, dict) else {} for t in batch.get("trainees", [])]
         batches.append(batch)
     return batches
 
 @router.get("/batches/grouped")
 async def grouped_batches():
-    # Group batches by phase and batch_number, then by skill
     batches = []
     cursor = db.batches.find()
     async for batch in cursor:
-        batch["_id"] = str(batch["_id"])
+        batch_id = str(batch["_id"])
+        batch["_id"] = batch_id
+        batch["trainees"] = [t if isinstance(t, dict) else {} for t in batch.get("trainees", [])]
         batches.append(batch)
     grouped = {}
     for batch in batches:
@@ -1201,6 +1220,108 @@ async def get_courses():
     for course in courses:
         course["_id"] = str(course["_id"])
     return {"courses": courses}
+
+@app.get("/trainees/{emp_id}/tasks")
+async def get_trainee_tasks(emp_id: str):
+    # Return empty list or mock data for now
+    return {"tasks": []}
+
+@app.post("/api/create-trainee-with-batch")
+async def create_trainee_with_batch(trainee: dict):
+    # 1. Insert trainee into trainees collection
+    from datetime import datetime
+    trainee_data = trainee.copy()
+    trainee_data['created_at'] = trainee_data.get('created_at') or datetime.now().isoformat()
+    result = await db["trainees"].insert_one(trainee_data)
+    trainee_id = result.inserted_id
+
+    # 2. Prepare embedded trainee object
+    embedded_trainee = {
+        'name': trainee_data.get('name'),
+        'email': trainee_data.get('email'),
+        'empId': trainee_data.get('empId'),
+        'phase': trainee_data.get('phase', 1),
+        'status': trainee_data.get('status', 'active'),
+        'specialization': trainee_data.get('specialization'),
+        'progress': trainee_data.get('progress', {}),
+        'created_at': trainee_data.get('created_at'),
+    }
+
+    # 3. Assign to a batch (phase 1, is_next_batch: False)
+    batch = await db.batches.find_one({'phase': 1, 'is_next_batch': False})
+    if batch:
+        await db.batches.update_one({'_id': batch['_id']}, {'$push': {'trainees': embedded_trainee}})
+    else:
+        batch_doc = {
+            'batch_id': str(trainee_id),
+            'phase': 1,
+            'trainees': [embedded_trainee],
+            'is_next_batch': False,
+            'created_at': datetime.now().isoformat()
+        }
+        await db.batches.insert_one(batch_doc)
+
+    # 4. Return the new trainee's data
+    new_trainee = await db["trainees"].find_one({'_id': trainee_id})
+    new_trainee["_id"] = str(new_trainee["_id"])
+    return new_trainee
+
+async def ensure_all_trainees_embedded_in_batches():
+    db = get_database()
+    batches = db.batches
+    trainees = db.trainees
+    # First, clean up all batches to remove any {} or incomplete objects
+    async for batch in batches.find({}):
+        valid_trainees = []
+        for t in batch.get('trainees', []):
+            if (
+                isinstance(t, dict)
+                and all(isinstance(t.get(k), str) and t.get(k) for k in ['name', 'empId', 'email'])
+            ):
+                valid_trainees.append(t)
+        # Only update if the filtered list is different
+        if len(valid_trainees) != len(batch.get('trainees', [])):
+            await batches.update_one({'_id': batch['_id']}, {'$set': {'trainees': valid_trainees}})
+    # Then, ensure all trainees are embedded in the correct batch
+    async for trainee in trainees.find({}):
+        skill = trainee.get('specialization', 'python').lower() if trainee.get('specialization') else 'python'
+        phase = trainee.get('phase', 1)
+        batch = await batches.find_one({'skill': skill, 'phase': phase, 'is_next_batch': False})
+        embedded = {
+            'name': trainee.get('name', ''),
+            'email': trainee.get('email', ''),
+            'empId': trainee.get('empId', ''),
+            'status': trainee.get('status', 'active'),
+            'phase': phase,
+            'specialization': skill,
+            'progress': trainee.get('progress', {}),
+            'created_at': trainee.get('created_at', ''),
+        }
+        if not all(isinstance(embedded.get(k), str) and embedded.get(k) for k in ['name', 'empId', 'email']):
+            continue
+        found = False
+        if batch:
+            for t in batch.get('trainees', []):
+                if t.get('empId') == embedded['empId']:
+                    found = True
+                    break
+            if not found:
+                await batches.update_one({'_id': batch['_id']}, {'$push': {'trainees': embedded}})
+        else:
+            from datetime import datetime
+            batch_doc = {
+                'batch_id': str(trainee.get('_id')),
+                'phase': phase,
+                'skill': skill,
+                'trainees': [embedded],
+                'is_next_batch': False,
+                'created_at': trainee.get('created_at', datetime.now().isoformat())
+            }
+            await batches.insert_one(batch_doc)
+
+@app.on_event("startup")
+async def run_migration_on_startup():
+    await ensure_all_trainees_embedded_in_batches()
 
 app.include_router(router)
 app.include_router(api_router, prefix="/api/v2")

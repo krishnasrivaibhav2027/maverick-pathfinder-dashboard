@@ -247,4 +247,10 @@ async def disqualify_trainee(test_id: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Test not found.")
     # Disqualify trainee (set disqualified True)
     await crud_examples.update_test(test_id, {"disqualified": True})
-    return {"message": "Trainee disqualified and termination process started."} 
+    return {"message": "Trainee disqualified and termination process started."}
+
+# --- Batch Endpoints ---
+@router.get('/batches')
+async def get_batches():
+    batches = await crud_examples.get_all_batches()
+    return [batch.dict() for batch in batches] 

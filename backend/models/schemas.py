@@ -106,4 +106,13 @@ class Admin(BaseModel):
     empId: Optional[str]
     role: str = 'admin'
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    model_config = {"arbitrary_types_allowed": True}
+
+class Batch(BaseModel):
+    id: Optional[ObjectId]
+    batch_id: str
+    phase: int
+    trainees: List[str] = []
+    is_next_batch: bool = False
+    created_at: datetime = Field(default_factory=datetime.utcnow)
     model_config = {"arbitrary_types_allowed": True} 

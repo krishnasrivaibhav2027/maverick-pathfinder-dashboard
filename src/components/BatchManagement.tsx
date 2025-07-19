@@ -12,7 +12,7 @@ interface Batch {
   skill: string;
   phase: number;
   is_next_batch: boolean;
-  trainees: { name: string; email: string; pdf: string; skill: string }[];
+  trainees: { name: string; email: string; empId: string; pdf?: string; skill?: string; progress?: number }[];
   created_at: string;
   accounts_created?: boolean;
   next_batch_date?: string;
@@ -60,6 +60,11 @@ const BatchHeader = ({ title, onBack, showBack }: { title: string; onBack?: () =
     </div>
   </div>
 );
+
+// Helper to safely render only strings or numbers
+function safeRender(val: unknown) {
+  return (typeof val === 'string' || typeof val === 'number') ? val : '-';
+}
 
 const BatchManagement = () => {
   const [allPhases, setAllPhases] = useState<string[]>([]);
@@ -177,17 +182,26 @@ const BatchManagement = () => {
           <ArrowLeft className="h-7 w-7 text-orange-400" />
         </button>
         <div className="flex flex-row gap-6 flex-wrap">
-          {batchNumbers.map((batchNum: number) => (
-            <button
-              key={batchNum}
-              className="flex flex-col items-center gap-2 px-8 py-8 rounded-2xl bg-white/80 shadow-xl hover:shadow-2xl hover:-translate-y-1 active:shadow-inner active:translate-y-0 transition-all duration-150 border-0"
-              style={{ minWidth: 180, maxWidth: 240, minHeight: 100, ...font, fontWeight: 800, fontSize: '1.5rem', color: '#FF7C2B', boxShadow: '0 2px 16px 0 #ff7c2b22', background: 'rgba(255,255,255,0.92)' }}
-              onClick={() => setSelectedBatchGroup(batchMap[batchNum])}
-            >
-              <Users className="h-8 w-8 text-orange-400 mb-1" />
-              <span>Batch {batchNum}</span>
-            </button>
-          ))}
+          {batchNumbers.map((batchNum: number) => {
+            const batchesForNum = batchMap[batchNum];
+            return batchesForNum.map(batch => {
+              const visibleTrainees = (batch.trainees || []).filter(
+                t => t && typeof t === 'object' && t.name && t.empId && t.email
+              );
+              const avgProgress = visibleTrainees.length > 0 ? visibleTrainees.reduce((acc, t) => acc + ((t as Trainee).progress || 0), 0) / visibleTrainees.length : 0;
+              return (
+                <button
+                  key={batch.skill}
+                  className="flex flex-col items-center gap-2 px-8 py-8 rounded-2xl bg-white/80 shadow-xl hover:shadow-2xl hover:-translate-y-1 active:shadow-inner active:translate-y-0 transition-all duration-150 border-0"
+                  style={{ minWidth: 180, maxWidth: 240, minHeight: 100, ...font, fontWeight: 800, fontSize: '1.5rem', color: '#FF7C2B', boxShadow: '0 2px 16px 0 #ff7c2b22', background: 'rgba(255,255,255,0.92)' }}
+                  onClick={() => setSelectedBatchGroup(batchMap[batchNum])}
+                >
+                  <Users className="h-8 w-8 text-orange-400 mb-1" />
+                  <span>Batch {batchNum}</span>
+                </button>
+              );
+            });
+          })}
         </div>
       </div>
     );
@@ -209,8 +223,8 @@ const BatchManagement = () => {
         </div>
         <div className="flex flex-row gap-8 flex-wrap mt-2">
           {selectedBatchGroup.map(batch => {
-            const visibleTrainees = batch.trainees.filter(
-              (t: Trainee) => t.empId && t.empId !== '-' && t.empId.trim() !== ''
+            const visibleTrainees = (batch.trainees || []).filter(
+              t => t && typeof t === 'object' && t.name && t.empId && t.email
             );
             const avgProgress = visibleTrainees.length > 0 ? visibleTrainees.reduce((acc, t) => acc + ((t as Trainee).progress || 0), 0) / visibleTrainees.length : 0;
             return (
@@ -225,9 +239,9 @@ const BatchManagement = () => {
                   onClick={() => { setSelectedBatchGroup(null); setSelectedBatch(batch); setSelectedSkill(null); }}
                 >
                   <div className="flex flex-col items-start gap-1 w-full">
-                    <span className="text-xl font-extrabold text-orange-500 mb-1">{batch.skill.charAt(0).toUpperCase() + batch.skill.slice(1)} - Batch {batch.batch_number}</span>
+                    <span className="text-xl font-extrabold text-orange-500 mb-1">{safeRender(batch.skill.charAt(0).toUpperCase() + batch.skill.slice(1))} - Batch {safeRender(batch.batch_number)}</span>
                     <span className="text-sm font-semibold text-orange-400 mb-1">Skill group</span>
-                    <span className="text-base text-gray-500 mb-2">Skill group for {batch.skill.charAt(0).toUpperCase() + batch.skill.slice(1)} specialization.</span>
+                    <span className="text-base text-gray-500 mb-2">Skill group for {safeRender(batch.skill.charAt(0).toUpperCase() + batch.skill.slice(1))} specialization.</span>
                   </div>
                   <div className="w-full flex flex-col gap-1">
                     <div className="flex items-center gap-2 w-full">
@@ -298,10 +312,10 @@ const BatchManagement = () => {
 
   // 4. Trainee list for skill group (batch detail view)
   if (selectedBatch && !selectedSkill && !selectedTrainee) {
-    const avgProgress = (selectedBatch.trainees as Trainee[]).length > 0 ? (selectedBatch.trainees as Trainee[]).reduce((acc, t) => acc + ((t as Trainee).progress || 0), 0) / (selectedBatch.trainees as Trainee[]).length : 0;
     const visibleTrainees = (selectedBatch.trainees as Trainee[]).filter(
-      t => t.empId && t.empId !== '-' && t.empId.trim() !== ''
+      t => t && typeof t === 'object' && t.name && t.empId && t.email
     );
+    const avgProgress = visibleTrainees.length > 0 ? visibleTrainees.reduce((acc, t) => acc + ((t as Trainee).progress || 0), 0) / visibleTrainees.length : 0;
     return (
       <div className="w-full h-full flex flex-col items-start justify-start p-8">
         {/* Header */}
@@ -310,8 +324,8 @@ const BatchManagement = () => {
             <ArrowLeft className="h-7 w-7 text-orange-400" />
           </button>
           <div className="flex flex-col gap-1">
-            <span className="text-2xl font-extrabold text-orange-500" style={font}>{selectedBatch.skill.charAt(0).toUpperCase() + selectedBatch.skill.slice(1)} - Batch {selectedBatch.batch_number}</span>
-            <span className="text-base text-orange-400 font-semibold">Skill group for {selectedBatch.skill} specialization</span>
+            <span className="text-2xl font-extrabold text-orange-500" style={font}>{safeRender(selectedBatch.skill.charAt(0).toUpperCase() + selectedBatch.skill.slice(1))} - Batch {safeRender(selectedBatch.batch_number)}</span>
+            <span className="text-base text-orange-400 font-semibold">Skill group for {safeRender(selectedBatch.skill)} specialization</span>
           </div>
         </div>
         {/* Overall Progress Bar */}
@@ -324,7 +338,7 @@ const BatchManagement = () => {
             </div>
             <span className="text-sm text-orange-400 font-bold ml-2">{Math.round(avgProgress)}% complete</span>
           </div>
-          <div className="text-base text-gray-500 mt-2">Skill group for {selectedBatch.skill.charAt(0).toUpperCase() + selectedBatch.skill.slice(1)} specialization.</div>
+          <div className="text-base text-gray-500 mt-2">Skill group for {safeRender(selectedBatch.skill.charAt(0).toUpperCase() + selectedBatch.skill.slice(1))} specialization.</div>
         </div>
         {/* Trainee Table */}
         <div className="rounded-2xl bg-white/80 shadow p-6 w-full max-w-6xl">
@@ -345,14 +359,14 @@ const BatchManagement = () => {
                 <tr key={trainee.email} className={idx % 2 === 0 ? "bg-white/90" : "bg-orange-50/60"}>
                   <td className="py-3 px-4 text-center align-middle" style={{width: '80px'}}>
                     <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center font-bold text-orange-500 text-lg shadow mx-auto">
-                      {getInitials(trainee.name)}
+                      {safeRender(getInitials(trainee.name))}
                     </div>
                   </td>
                   <td className="py-3 px-4 align-middle font-semibold text-orange-700 text-base text-left" style={{minWidth: '180px', maxWidth: '260px'}}>
-                    {trainee.name}
+                    {safeRender(trainee.name)}
                   </td>
-                  <td className="py-3 px-4 text-gray-500 text-center align-middle" style={{width: '90px'}}>{trainee.empId || '-'}</td>
-                  <td className="py-3 px-4 text-gray-500 text-left align-middle" style={{minWidth: '220px', maxWidth: '320px'}}>{trainee.email}</td>
+                  <td className="py-3 px-4 text-gray-500 text-center align-middle" style={{width: '90px'}}>{safeRender(trainee.empId)}</td>
+                  <td className="py-3 px-4 text-gray-500 text-left align-middle" style={{minWidth: '220px', maxWidth: '320px'}}>{safeRender(trainee.email)}</td>
                   <td className="py-3 px-4 align-middle text-center" style={{width: '160px'}}>
                     <div className="flex items-center gap-2 justify-center">
                       <Progress value={trainee.progress || 0} className="w-28 h-2 bg-orange-100" style={{ accentColor: '#FF7C2B' }} />
@@ -451,18 +465,18 @@ const BatchManagement = () => {
               <svg width="28" height="28" fill="none" stroke="#FF7C2B" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21l-7-7 7-7"/></svg>
             </button>
             <div className="h-16 w-16 rounded-full bg-orange-100 flex items-center justify-center font-bold text-orange-500 text-2xl shadow" style={{ backgroundImage: selectedTrainee.photo ? `url(${selectedTrainee.photo})` : undefined, backgroundSize: 'cover' }}>
-              {!selectedTrainee.photo && getInitials(selectedTrainee.name)}
+              {!selectedTrainee.photo && safeRender(getInitials(selectedTrainee.name))}
             </div>
             <div>
-              <h2 className="text-2xl font-extrabold text-orange-500 tracking-tight" style={{ letterSpacing: '-0.04em' }}>{selectedTrainee.name}</h2>
+              <h2 className="text-2xl font-extrabold text-orange-500 tracking-tight" style={{ letterSpacing: '-0.04em' }}>{safeRender(selectedTrainee.name)}</h2>
               <div className="text-orange-400 font-semibold text-sm">Maverick Profile & Progress</div>
             </div>
           </div>
           {/* Info grid: two columns, left: email, batch; right: user id, module */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 px-8 pt-2 pb-2">
-            <div className="flex items-center gap-2 text-gray-700 text-sm">{infoIcon('mail')}<span>Email: {selectedTrainee.email}</span></div>
-            <div className="flex items-center gap-2 text-gray-700 text-sm">{infoIcon('user')}<span>User ID: {selectedTrainee.empId || '-'}</span></div>
-            <div className="flex items-center gap-2 text-gray-700 text-sm">{infoIcon('batch')}<span>Batch: {selectedBatch?.skill ? `batch_${selectedBatch.skill}_${selectedBatch.batch_number}` : '-'}</span></div>
+            <div className="flex items-center gap-2 text-gray-700 text-sm">{infoIcon('mail')}<span>Email: {safeRender(selectedTrainee.email)}</span></div>
+            <div className="flex items-center gap-2 text-gray-700 text-sm">{infoIcon('user')}<span>User ID: {safeRender(selectedTrainee.empId)}</span></div>
+            <div className="flex items-center gap-2 text-gray-700 text-sm">{infoIcon('batch')}<span>Batch: {selectedBatch?.skill ? `batch_${safeRender(selectedBatch.skill)}_${safeRender(selectedBatch.batch_number)}` : '-'}</span></div>
             <div className="flex items-center gap-2 text-gray-700 text-sm">{infoIcon('module')}<span>Current Module: module_phase1_lang_basics</span></div>
           </div>
           {/* Progress bar */}

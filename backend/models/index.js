@@ -4,4 +4,5 @@ module.exports = {
   Subcourse: require('./Subcourse'),
   Quiz: require('./Quiz'),
   Test: require('./Test'),
+  Batch: require('./Batch'),
 }; 
