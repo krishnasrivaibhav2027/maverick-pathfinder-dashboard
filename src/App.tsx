@@ -42,7 +42,7 @@ const App = () => (
               <Route path="/training/course/:courseId" element={<CourseDetailPage />} />
             </Route>
             <Route path="/admin-dashboard" element={<AdminDashboard />} />
-            <Route path="/admin/batches" element={<ActiveBatches />} />
+            <Route path="/admin/active-batches" element={<ActiveBatches />} />
             <Route path="/admin/next-batch" element={<NextBatchOverflow />} />
           </Route>
           <Route path="*" element={<NotFound />} />
