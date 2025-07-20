@@ -101,8 +101,8 @@ export default function CourseDetailPage() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: "linear-gradient(135deg, #f8fafc 0%, #fff7f0 100%)" }}>
-      <div className="max-w-3xl mx-auto">
+    <div className="min-h-screen">
+      <div className="max-w-3xl mx-auto px-0 pt-2">
         <Button 
           variant="outline"
           className="mb-6 flex items-center gap-2 rounded-full px-5 py-2 font-semibold border-orange-200 text-orange-500 hover:bg-orange-50 hover:text-orange-600 bg-white/80"

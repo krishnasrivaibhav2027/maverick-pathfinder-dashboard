@@ -11,6 +11,13 @@ async def migrate_batch_trainees():
     batches = db.batches
     trainees = db.trainees
 
+    # 1. Fix all trainees in the trainees collection
+    async for trainee in trainees.find({}):
+        if isinstance(trainee.get('progress'), dict):
+            await trainees.update_one({'_id': trainee['_id']}, {'$set': {'progress': 0}})
+            print(f"Updated trainee {trainee.get('_id')} progress to 0")
+
+    # 2. Fix all embedded trainees in batches
     async for batch in batches.find({}):
         updated_trainees = []
         changed = False
@@ -30,14 +37,19 @@ async def migrate_batch_trainees():
                         'progress': trainee.get('progress', {}),
                         'created_at': trainee.get('created_at'),
                     }
+                    if isinstance(embedded.get('progress'), dict):
+                        embedded['progress'] = 0
                     updated_trainees.append(embedded)
                     changed = True
             else:
                 # Already an embedded object
-                updated_trainees.append(t)
+                if isinstance(t, dict) and isinstance(t.get('progress'), dict):
+                    t['progress'] = 0
+                    changed = True
+            updated_trainees.append(t)
         if changed:
             await batches.update_one({'_id': batch['_id']}, {'$set': {'trainees': updated_trainees}})
-            print(f"Updated batch {batch.get('_id')} with embedded trainees.")
+            print(f"Updated batch {batch.get('_id')} embedded trainees' progress to 0")
 
 if __name__ == '__main__':
     asyncio.run(migrate_batch_trainees()) 

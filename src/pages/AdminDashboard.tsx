@@ -516,84 +516,7 @@ const AdminDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
-      {/* Header */}
-      <div className="w-full bg-white py-4 px-0 mb-8 shadow-lg">
-        <div className="container mx-auto flex justify-between items-center" style={font}>
-          <div className="flex items-center gap-4">
-            <span className="rounded-full bg-gradient-to-tr from-orange-400 to-orange-500 p-3 shadow-lg">
-              <Rocket className="h-7 w-7 text-white" />
-            </span>
-            <div>
-              <h1 className="text-3xl font-extrabold tracking-tight" style={{ color: accent, letterSpacing: '-0.04em' }}>Admin Dashboard</h1>
-              <p className="text-base text-gray-500 font-medium">Mavericks Training Management Portal</p>
-              <p className="text-base mt-1 font-semibold" style={{ color: accent2 }}>Welcome, {adminName}!</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <Popover.Root open={open} onOpenChange={setOpen}>
-              <Popover.Trigger asChild>
-                <button
-                  className="rounded-full p-2 bg-white/80 hover:bg-orange-50 shadow border border-orange-100 transition-all relative"
-                  aria-label="Notifications"
-                >
-                  <Bell className="h-6 w-6 text-orange-400" />
-                  {pendingResumes.length > 0 && (
-                    <span className="absolute top-0 right-0 block h-3 w-3 rounded-full bg-red-500 border-2 border-white"></span>
-                  )}
-                </button>
-              </Popover.Trigger>
-              <Popover.Portal>
-                <AnimatePresence>
-                  {open && (
-                    <Popover.Content side="bottom" align="end" sideOffset={8} asChild>
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.7, y: -20 }}
-                        animate={{ opacity: 1, scale: 1, y: 0, transition: { type: 'spring', stiffness: 400, damping: 30 } }}
-                        exit={{ opacity: 0, scale: 0.7, y: -20, transition: { duration: 0.2 } }}
-                        className="rounded-2xl bg-white/20 shadow-2xl border border-white/40 p-6 min-w-[320px] max-w-xs"
-                        style={{ backdropFilter: 'blur(16px)' }}
-                      >
-                        <div className="font-bold text-lg text-orange-500 mb-2">Notifications</div>
-                        <div className="text-base text-gray-700">
-                          {pendingResumes.length > 0 ? (
-                            <>
-                              A trainee submitted resume needs to be approved for batch allocation.<br />
-                              <b>Check onboarding section.</b>
-                            </>
-                          ) : (
-                            <span>No notifications.</span>
-                          )}
-                        </div>
-                      </motion.div>
-                    </Popover.Content>
-                  )}
-                </AnimatePresence>
-              </Popover.Portal>
-            </Popover.Root>
-            <Button
-              className="rounded-full px-6 py-2 text-base font-semibold shadow-md bg-gradient-to-r from-orange-500 to-orange-400 hover:from-orange-600 hover:to-orange-500 text-white flex items-center gap-2 transition-all duration-200"
-              onClick={() => {
-                localStorage.removeItem('empId');
-                localStorage.removeItem('is_admin');
-                localStorage.removeItem('admin_name');
-                navigate('/');
-              }} style={font}
-            >
-              <LogOut className="h-5 w-5" /> Logout
-            </Button>
-            <Button
-              variant="ghost"
-              className="ml-2 rounded-full p-2"
-              aria-label="Toggle dark mode"
-              onClick={() => setDarkMode((d) => !d)}
-            >
-              {darkMode ? <Sun className="h-5 w-5 text-yellow-400" /> : <Moon className="h-5 w-5 text-gray-700 dark:text-gray-200" />}
-            </Button>
-          </div>
-        </div>
-      </div>
-
+    <>
       <div className="container mx-auto px-6 py-6">
         {/* Quick Stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 mb-12">
@@ -1083,7 +1006,7 @@ const AdminDashboard = () => {
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

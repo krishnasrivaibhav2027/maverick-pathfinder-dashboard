@@ -39,13 +39,16 @@ export interface Trainee {
   skill?: string;
   empId?: string;
   photo?: string;
+  status?: string;
+  phase?: number;
+  specialization?: string;
 }
 
 const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
 const accent = "#FF7C2B"; // orange gradient start
 const accent2 = "#FF512F"; // orange gradient end
-const glass = "bg-white/60 backdrop-blur-md shadow-2xl border border-white/30";
+const glass = "bg-white/60 backdrop-blur-md shadow-2xl";
 const font = { fontFamily: 'Inter, ui-rounded, system-ui, sans-serif' };
 
 const BatchHeader = ({ title, onBack, showBack }: { title: string; onBack?: () => void; showBack?: boolean }) => (
@@ -161,7 +164,7 @@ const BatchManagement = () => {
   // 1. Phase selection
   if (!selectedPhase) {
     return (
-      <div className="w-full h-full flex flex-col items-start justify-start p-8">
+      <div className="w-full flex flex-col items-start justify-start pt-2 pb-8">
         <div className="flex flex-row gap-6 mb-4">
           <Button onClick={() => fetchBatches()} variant="outline">Refresh</Button>
         </div>
@@ -169,8 +172,8 @@ const BatchManagement = () => {
           {allPhases.map(phase => (
             <button
               key={phase}
-              className="relative flex items-center gap-3 px-8 py-6 rounded-2xl bg-white/70 shadow-lg border-l-4 border-orange-400 hover:shadow-xl hover:-translate-y-1 hover:border-orange-500 active:shadow-inner active:translate-y-0 transition-all duration-150"
-              style={{ minWidth: 180, maxWidth: 220, minHeight: 80, ...font, fontWeight: 700, fontSize: '1.35rem', color: '#FF7C2B', boxShadow: '0 2px 16px 0 #ff7c2b11', background: 'rgba(255,255,255,0.85)' }}
+              className="relative flex items-center gap-3 px-8 py-6 rounded-2xl bg-white/70 shadow hover:shadow-lg border-none active:shadow-inner active:translate-y-0 transition-all duration-150"
+              style={{ minWidth: 180, maxWidth: 220, minHeight: 80, ...font, fontWeight: 700, fontSize: '1.35rem', color: '#FF7C2B', background: 'rgba(255,255,255,0.85)', border: 'none' }}
               onClick={() => setSelectedPhase(phase)}
             >
               <Layers className="h-7 w-7 text-orange-400" />
@@ -193,7 +196,7 @@ const BatchManagement = () => {
     });
     const batchNumbers: number[] = Object.keys(batchMap).map((k: string) => Number(k)).sort((a, b) => a - b);
     return (
-      <div className="w-full h-full flex flex-col items-start justify-start p-8">
+      <div className="w-full flex flex-col items-start justify-start pt-2 pb-8">
         <div className="flex flex-row gap-6 mb-4">
           <Button onClick={() => fetchBatches()} variant="outline">Refresh</Button>
         </div>
@@ -381,19 +384,24 @@ const BatchManagement = () => {
             <tbody>
               {visibleTrainees.map((trainee, idx) => {
                 console.log('Rendering trainee:', trainee);
+                Object.entries(trainee).forEach(([key, value]) => {
+                  if (typeof value === 'object' && value !== null && !React.isValidElement(value)) {
+                    console.warn(`Trainee field '${key}' is an object:`, value);
+                  }
+                });
                 const progressValue = typeof trainee.progress === 'number' ? trainee.progress : 0;
                 return (
                   <tr key={trainee.email} className={idx % 2 === 0 ? "bg-white/90" : "bg-orange-50/60"}>
                     <td className="py-3 px-4 text-center align-middle" style={{width: '80px'}}>
                       <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center font-bold text-orange-500 text-lg shadow mx-auto">
-                        {safeRender(getInitials(trainee.name))}
+                        {safeRender(getInitials(trainee.name), 'initials')}
                       </div>
                     </td>
                     <td className="py-3 px-4 align-middle font-semibold text-orange-700 text-base text-left" style={{minWidth: '180px', maxWidth: '260px'}}>
-                      {safeRender(trainee.name)}
+                      {safeRender(trainee.name, 'name')}
                     </td>
                     <td className="py-3 px-4 text-gray-500 text-center align-middle" style={{width: '90px'}}>{safeRender(trainee.empId, 'empId')}</td>
-                    <td className="py-3 px-4 text-gray-500 text-left align-middle" style={{minWidth: '220px', maxWidth: '320px'}}>{safeRender(trainee.email)}</td>
+                    <td className="py-3 px-4 text-gray-500 text-left align-middle" style={{minWidth: '220px', maxWidth: '320px'}}>{safeRender(trainee.email, 'email')}</td>
                     <td className="py-3 px-4 align-middle text-center" style={{width: '160px'}}>
                       <div className="flex items-center gap-2 justify-center">
                         <Progress value={progressValue} className="w-28 h-2 bg-orange-100" style={{ accentColor: '#FF7C2B' }} />
@@ -401,7 +409,22 @@ const BatchManagement = () => {
                       </div>
                     </td>
                     <td className="py-3 px-4 align-middle text-center" style={{width: '110px'}}>
-                      <button className="text-orange-500 font-bold hover:underline" onClick={() => setSelectedTrainee(trainee)}>View Details</button>
+                      <button
+                        className="text-orange-500 hover:underline cursor-pointer"
+                        onClick={() => {
+                          if (!selectedPhase) {
+                            setSelectedTrainee(null);
+                            setSelectedBatch(null);
+                            setSelectedBatchGroup(null);
+                            setSelectedSkill(null);
+                            setSelectedPhase(null);
+                          } else {
+                            setSelectedTrainee(trainee);
+                          }
+                        }}
+                      >
+                        View Details
+                      </button>
                       <div className="mt-2">
                         {trainee.empId || accountStatus[trainee.email]?.status === 'success' ? (
                           <span className="text-green-600 font-semibold">Account Created</span>
@@ -423,12 +446,12 @@ const BatchManagement = () => {
                                   setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'success', empId: data.empId, password: data.password } }));
                                   setTrainees(ts => ts.map(t => t.email === trainee.email ? { ...t, empId: data.empId } : t));
                                   toast({ title: 'Account Created', description: `EmpID: ${data.empId}` });
-                                  fetchBatches(); // Refresh batch data
+                                  fetchBatches();
                                 } else if (data.status === 'already_created') {
                                   setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'success', empId: data.empId } }));
                                   setTrainees(ts => ts.map(t => t.email === trainee.email ? { ...t, empId: data.empId } : t));
                                   toast({ title: 'Already Created', description: data.message });
-                                  fetchBatches(); // Refresh batch data
+                                  fetchBatches();
                                 } else {
                                   setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'error' } }));
                                   toast({ title: 'Error', description: data.detail || 'Unknown error' });
@@ -444,8 +467,8 @@ const BatchManagement = () => {
                         )}
                         {accountStatus[trainee.email]?.status === 'success' && accountStatus[trainee.email]?.empId && accountStatus[trainee.email]?.password && (
                           <div className="text-xs text-green-700 mt-1">
-                            <div>EmpID: <b>{accountStatus[trainee.email].empId}</b></div>
-                            <div>Temp PW: <b>{accountStatus[trainee.email].password}</b></div>
+                            <div>EmpID: <b>{safeRender(accountStatus[trainee.email].empId, 'empId')}</b></div>
+                            <div>Temp PW: <b>{safeRender(accountStatus[trainee.email].password, 'password')}</b></div>
                           </div>
                         )}
                       </div>

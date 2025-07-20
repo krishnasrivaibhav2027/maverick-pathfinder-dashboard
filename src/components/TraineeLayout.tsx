@@ -126,7 +126,7 @@ export default function TraineeLayout({ children }: { children: React.ReactNode 
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground transition-colors duration-300">
+    <div className="min-h-screen text-foreground transition-colors duration-300">
       {/* Header */}
       <div className="w-full bg-white py-4 px-0 mb-8 shadow-lg">
         <div className="container mx-auto flex justify-between items-center" style={font}>

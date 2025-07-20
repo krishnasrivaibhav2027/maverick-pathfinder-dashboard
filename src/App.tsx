@@ -12,6 +12,7 @@ import ActiveBatches from "./pages/ActiveBatches";
 import NextBatchOverflow from "./pages/NextBatchOverflow";
 import CourseDetailPage from "./pages/CourseDetailPage";
 import TraineeLayout from "./components/TraineeLayout";
+import AdminLayout from "./components/AdminLayout";
 
 
 const queryClient = new QueryClient();
@@ -41,9 +42,11 @@ const App = () => (
               <Route path="/trainee-dashboard/:empId/phase/:phaseId" element={<PhaseTrainings />} />
               <Route path="/training/course/:courseId" element={<CourseDetailPage />} />
             </Route>
-            <Route path="/admin-dashboard" element={<AdminDashboard />} />
-            <Route path="/admin/active-batches" element={<ActiveBatches />} />
-            <Route path="/admin/next-batch" element={<NextBatchOverflow />} />
+            <Route element={<AdminLayout><Outlet /></AdminLayout>}>
+              <Route path="/admin-dashboard" element={<AdminDashboard />} />
+              <Route path="/admin/active-batches" element={<ActiveBatches />} />
+              <Route path="/admin/next-batch" element={<NextBatchOverflow />} />
+            </Route>
           </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>

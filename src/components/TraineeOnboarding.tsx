@@ -242,7 +242,7 @@ const TraineeOnboarding = () => {
 
   return (
     <div className="space-y-8">
-      <div className={`rounded-3xl ${glass} p-8 shadow-xl`} style={{ boxShadow: `0 8px 32px 0 ${accent}22` }}>
+      <div className={`rounded-3xl backdrop-blur-md shadow-2xl p-8 shadow-xl`} style={{ boxShadow: `0 8px 32px 0 ${accent}22` }}>
         <div className="flex items-center gap-3 mb-4">
           <Users className="h-7 w-7 text-orange-400" />
           <span className="text-2xl font-bold text-orange-500">Batch Trainee Onboarding</span>

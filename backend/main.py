@@ -252,7 +252,7 @@ async def login(login_request: LoginRequest):
                         password=hash_password(profile["password"]),  # Store hashed password
                         empId=profile["empId"],
                         phase=1,
-                        progress={},
+                        progress=0,
                         score=0,
                         status="active",
                         specialization="Pending",
@@ -485,7 +485,7 @@ async def bulk_create_trainees(trainees_data: list = Body(...)):
                     password=hash_password(profile["password"]),  # Store hashed password
                     empId=profile["empId"],
                     phase=1,
-                    progress={},
+                    progress=0,
                     score=0,
                     status="active",
                     specialization="Pending",
@@ -660,7 +660,7 @@ async def create_accounts_for_batch(request: dict = Body(...)):
                     password=hash_password(profile["password"]),  # Store hashed password
                     empId=profile["empId"],
                     phase=batch.get("phase", 1),
-                    progress={},
+                    progress=0,
                     score=0,
                     status="active",
                     specialization=batch.get("skill", "Pending"),
@@ -1131,7 +1131,7 @@ async def auto_allocate_and_create_account(payload: dict = Body(...)):
         password=hash_password(profile["password"]),  # Store hashed password
         empId=profile["empId"],
         phase=1,
-        progress={},
+        progress=0,
         score=0,
         status="active",
         specialization=skill,
@@ -1179,7 +1179,7 @@ async def create_account_for_trainee(payload: dict = Body(...)):
         password=hash_password(profile["password"]),  # Store hashed password
         empId=profile["empId"],
         phase=batch.get("phase", 1),
-        progress={},
+        progress=0,
         score=0,
         status="active",
         specialization=batch.get("skill", "Pending"),
@@ -1264,7 +1264,7 @@ async def create_trainee_with_batch(trainee: dict):
         'phase': trainee_data.get('phase', 1),
         'status': trainee_data.get('status', 'active'),
         'specialization': trainee_data.get('specialization'),
-        'progress': trainee_data.get('progress', {}),
+        'progress': trainee_data.get('progress', 0),
         'created_at': trainee_data.get('created_at'),
     }
 
@@ -1315,7 +1315,7 @@ async def ensure_all_trainees_embedded_in_batches():
             'status': trainee.get('status', 'active'),
             'phase': phase,
             'specialization': skill,
-            'progress': trainee.get('progress', {}),
+            'progress': trainee.get('progress', 0),
             'created_at': trainee.get('created_at', ''),
         }
         if not all(isinstance(embedded.get(k), str) and embedded.get(k) for k in ['name', 'empId', 'email']):
