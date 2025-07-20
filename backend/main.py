@@ -1,4 +1,16 @@
-from itertools import batched
+# Patch for Python <3.12: provide batched if not available
+try:
+    from itertools import batched  # Python 3.12+
+except ImportError:
+    from itertools import islice
+    def batched(iterable, n):
+        it = iter(iterable)
+        while True:
+            batch = tuple([*islice(it, n)])
+            if not batch:
+                return
+            yield batch
+
 from fastapi import FastAPI, HTTPException, Body, UploadFile, File, APIRouter, Depends, Path, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
@@ -39,7 +51,13 @@ app = FastAPI(
 # CORS Middleware Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=[
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "*"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -782,7 +800,10 @@ async def get_skill_groups_for_batch(batch_id: str):
         if skill not in skill_groups:
             skill_groups[skill] = {"trainees": [], "total_progress": 0}
         skill_groups[skill]["trainees"].append(trainee)
-        skill_groups[skill]["total_progress"] += trainee.get("progress", 0)
+        progress_val = trainee.get("progress", 0)
+        if isinstance(progress_val, dict):
+            progress_val = 0
+        skill_groups[skill]["total_progress"] += progress_val
     result = []
     for skill, data in skill_groups.items():
         count = len(data["trainees"])

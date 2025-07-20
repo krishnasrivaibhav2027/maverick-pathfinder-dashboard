@@ -604,7 +604,7 @@ const AdminDashboard = () => {
             </div>
             <span className="text-3xl font-extrabold mt-2" style={{ color: accent }}>{overallStats.totalTrainees}</span>
           </div>
-          <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 cursor-pointer shadow-xl" onClick={() => navigate('/admin/batches')}>
+          <div className="rounded-3xl bg-white p-6 flex flex-col items-center transition-transform hover:scale-105 cursor-pointer shadow-xl" onClick={() => navigate('/admin/batches', { state: { phase: '1' } })}>
             <div className="flex items-center gap-2 mb-2">
               <CheckCircle className="h-7 w-7 text-emerald-400" />
               <span className="text-lg font-semibold text-emerald-500">Active Batches</span>

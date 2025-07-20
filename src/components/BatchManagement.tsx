@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState, ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Users, ArrowLeft, ChevronRight, Send, UserCircle, Layers } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { sendEmailJs } from '@/lib/emailjs';
 import { toast } from '@/components/ui/use-toast';
+import { useLocation } from "react-router-dom";
 
 interface Batch {
   _id: string;
@@ -62,11 +63,23 @@ const BatchHeader = ({ title, onBack, showBack }: { title: string; onBack?: () =
 );
 
 // Helper to safely render only strings or numbers
-function safeRender(val: unknown) {
-  return (typeof val === 'string' || typeof val === 'number') ? val : '-';
+function safeRender(val: unknown, fieldName?: string): React.ReactNode {
+  if (typeof val === 'string' || typeof val === 'number') return val;
+  if (Array.isArray(val)) {
+    console.warn(`safeRender received an array for field '${fieldName || 'unknown'}':`, val);
+    return val.map((v, i) => <span key={i}>{safeRender(v, fieldName)}</span>);
+  }
+  if (val && typeof val === 'object') {
+    // If it's a valid React element, return as is
+    if (React.isValidElement(val)) return val;
+    console.warn(`safeRender received an object for field '${fieldName || 'unknown'}':`, val);
+    return <span>{JSON.stringify(val)}</span>;
+  }
+  return '-';
 }
 
 const BatchManagement = () => {
+  const location = useLocation();
   const [allPhases, setAllPhases] = useState<string[]>([]);
   const [selectedPhase, setSelectedPhase] = useState<string | null>(null);
   const [batches, setBatches] = useState<Batch[]>([]);
@@ -139,6 +152,12 @@ const BatchManagement = () => {
     }
   }, [selectedBatch, selectedSkill]);
 
+  useEffect(() => {
+    if (location.state?.phase) {
+      setSelectedPhase(location.state.phase);
+    }
+  }, [location.state]);
+
   // 1. Phase selection
   if (!selectedPhase) {
     return (
@@ -194,7 +213,12 @@ const BatchManagement = () => {
                   key={batch.skill}
                   className="flex flex-col items-center gap-2 px-8 py-8 rounded-2xl bg-white/80 shadow-xl hover:shadow-2xl hover:-translate-y-1 active:shadow-inner active:translate-y-0 transition-all duration-150 border-0"
                   style={{ minWidth: 180, maxWidth: 240, minHeight: 100, ...font, fontWeight: 800, fontSize: '1.5rem', color: '#FF7C2B', boxShadow: '0 2px 16px 0 #ff7c2b22', background: 'rgba(255,255,255,0.92)' }}
-                  onClick={() => setSelectedBatchGroup(batchMap[batchNum])}
+                  onClick={() => {
+                    setSelectedBatch(batch);
+                    setSelectedBatchGroup(null);
+                    setSelectedSkill(null);
+                    setSelectedTrainee(null);
+                  }}
                 >
                   <Users className="h-8 w-8 text-orange-400 mb-1" />
                   <span>Batch {batchNum}</span>
@@ -355,76 +379,80 @@ const BatchManagement = () => {
               </tr>
             </thead>
             <tbody>
-              {visibleTrainees.map((trainee, idx) => (
-                <tr key={trainee.email} className={idx % 2 === 0 ? "bg-white/90" : "bg-orange-50/60"}>
-                  <td className="py-3 px-4 text-center align-middle" style={{width: '80px'}}>
-                    <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center font-bold text-orange-500 text-lg shadow mx-auto">
-                      {safeRender(getInitials(trainee.name))}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 align-middle font-semibold text-orange-700 text-base text-left" style={{minWidth: '180px', maxWidth: '260px'}}>
-                    {safeRender(trainee.name)}
-                  </td>
-                  <td className="py-3 px-4 text-gray-500 text-center align-middle" style={{width: '90px'}}>{safeRender(trainee.empId)}</td>
-                  <td className="py-3 px-4 text-gray-500 text-left align-middle" style={{minWidth: '220px', maxWidth: '320px'}}>{safeRender(trainee.email)}</td>
-                  <td className="py-3 px-4 align-middle text-center" style={{width: '160px'}}>
-                    <div className="flex items-center gap-2 justify-center">
-                      <Progress value={trainee.progress || 0} className="w-28 h-2 bg-orange-100" style={{ accentColor: '#FF7C2B' }} />
-                      <span className="text-xs text-orange-400 font-bold">{trainee.progress || 0}%</span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 align-middle text-center" style={{width: '110px'}}>
-                    <button className="text-orange-500 font-bold hover:underline" onClick={() => setSelectedTrainee(trainee)}>View Details</button>
-                    <div className="mt-2">
-                      {trainee.empId || accountStatus[trainee.email]?.status === 'success' ? (
-                        <span className="text-green-600 font-semibold">Account Created</span>
-                      ) : (
-                        <Button
-                          size="sm"
-                          className="w-full"
-                          disabled={accountStatus[trainee.email]?.status === 'loading'}
-                          onClick={async () => {
-                            setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'loading' } }));
-                            try {
-                              const res = await fetch('http://localhost:8000/onboarding/create-account-for-trainee', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ email: trainee.email, batch_id: selectedBatch?._id })
-                              });
-                              const data = await res.json();
-                              if (res.ok && data.status === 'success') {
-                                setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'success', empId: data.empId, password: data.password } }));
-                                setTrainees(ts => ts.map(t => t.email === trainee.email ? { ...t, empId: data.empId } : t));
-                                toast({ title: 'Account Created', description: `EmpID: ${data.empId}` });
-                                fetchBatches(); // Refresh batch data
-                              } else if (data.status === 'already_created') {
-                                setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'success', empId: data.empId } }));
-                                setTrainees(ts => ts.map(t => t.email === trainee.email ? { ...t, empId: data.empId } : t));
-                                toast({ title: 'Already Created', description: data.message });
-                                fetchBatches(); // Refresh batch data
-                              } else {
+              {visibleTrainees.map((trainee, idx) => {
+                console.log('Rendering trainee:', trainee);
+                const progressValue = typeof trainee.progress === 'number' ? trainee.progress : 0;
+                return (
+                  <tr key={trainee.email} className={idx % 2 === 0 ? "bg-white/90" : "bg-orange-50/60"}>
+                    <td className="py-3 px-4 text-center align-middle" style={{width: '80px'}}>
+                      <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center font-bold text-orange-500 text-lg shadow mx-auto">
+                        {safeRender(getInitials(trainee.name))}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 align-middle font-semibold text-orange-700 text-base text-left" style={{minWidth: '180px', maxWidth: '260px'}}>
+                      {safeRender(trainee.name)}
+                    </td>
+                    <td className="py-3 px-4 text-gray-500 text-center align-middle" style={{width: '90px'}}>{safeRender(trainee.empId, 'empId')}</td>
+                    <td className="py-3 px-4 text-gray-500 text-left align-middle" style={{minWidth: '220px', maxWidth: '320px'}}>{safeRender(trainee.email)}</td>
+                    <td className="py-3 px-4 align-middle text-center" style={{width: '160px'}}>
+                      <div className="flex items-center gap-2 justify-center">
+                        <Progress value={progressValue} className="w-28 h-2 bg-orange-100" style={{ accentColor: '#FF7C2B' }} />
+                        <span className="text-xs text-orange-400 font-bold">{progressValue}%</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 align-middle text-center" style={{width: '110px'}}>
+                      <button className="text-orange-500 font-bold hover:underline" onClick={() => setSelectedTrainee(trainee)}>View Details</button>
+                      <div className="mt-2">
+                        {trainee.empId || accountStatus[trainee.email]?.status === 'success' ? (
+                          <span className="text-green-600 font-semibold">Account Created</span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            className="w-full"
+                            disabled={accountStatus[trainee.email]?.status === 'loading'}
+                            onClick={async () => {
+                              setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'loading' } }));
+                              try {
+                                const res = await fetch('http://localhost:8000/onboarding/create-account-for-trainee', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ email: trainee.email, batch_id: selectedBatch?._id })
+                                });
+                                const data = await res.json();
+                                if (res.ok && data.status === 'success') {
+                                  setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'success', empId: data.empId, password: data.password } }));
+                                  setTrainees(ts => ts.map(t => t.email === trainee.email ? { ...t, empId: data.empId } : t));
+                                  toast({ title: 'Account Created', description: `EmpID: ${data.empId}` });
+                                  fetchBatches(); // Refresh batch data
+                                } else if (data.status === 'already_created') {
+                                  setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'success', empId: data.empId } }));
+                                  setTrainees(ts => ts.map(t => t.email === trainee.email ? { ...t, empId: data.empId } : t));
+                                  toast({ title: 'Already Created', description: data.message });
+                                  fetchBatches(); // Refresh batch data
+                                } else {
+                                  setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'error' } }));
+                                  toast({ title: 'Error', description: data.detail || 'Unknown error' });
+                                }
+                              } catch {
                                 setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'error' } }));
-                                toast({ title: 'Error', description: data.detail || 'Unknown error' });
+                                toast({ title: 'Error', description: 'Could not connect to server.' });
                               }
-                            } catch {
-                              setAccountStatus(s => ({ ...s, [trainee.email]: { status: 'error' } }));
-                              toast({ title: 'Error', description: 'Could not connect to server.' });
-                            }
-                          }}
-                        >
-                          {accountStatus[trainee.email]?.status === 'loading' ? 'Creating...' : 'Create Account'}
-                        </Button>
-                      )}
-                      {accountStatus[trainee.email]?.status === 'success' && accountStatus[trainee.email]?.empId && accountStatus[trainee.email]?.password && (
-                        <div className="text-xs text-green-700 mt-1">
-                          <div>EmpID: <b>{accountStatus[trainee.email].empId}</b></div>
-                          <div>Temp PW: <b>{accountStatus[trainee.email].password}</b></div>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                            }}
+                          >
+                            {accountStatus[trainee.email]?.status === 'loading' ? 'Creating...' : 'Create Account'}
+                          </Button>
+                        )}
+                        {accountStatus[trainee.email]?.status === 'success' && accountStatus[trainee.email]?.empId && accountStatus[trainee.email]?.password && (
+                          <div className="text-xs text-green-700 mt-1">
+                            <div>EmpID: <b>{accountStatus[trainee.email].empId}</b></div>
+                            <div>Temp PW: <b>{accountStatus[trainee.email].password}</b></div>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -475,7 +503,7 @@ const BatchManagement = () => {
           {/* Info grid: two columns, left: email, batch; right: user id, module */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 px-8 pt-2 pb-2">
             <div className="flex items-center gap-2 text-gray-700 text-sm">{infoIcon('mail')}<span>Email: {safeRender(selectedTrainee.email)}</span></div>
-            <div className="flex items-center gap-2 text-gray-700 text-sm">{infoIcon('user')}<span>User ID: {safeRender(selectedTrainee.empId)}</span></div>
+            <div className="flex items-center gap-2 text-gray-700 text-sm">{infoIcon('user')}<span>User ID: {safeRender(selectedTrainee.empId, 'empId')}</span></div>
             <div className="flex items-center gap-2 text-gray-700 text-sm">{infoIcon('batch')}<span>Batch: {selectedBatch?.skill ? `batch_${safeRender(selectedBatch.skill)}_${safeRender(selectedBatch.batch_number)}` : '-'}</span></div>
             <div className="flex items-center gap-2 text-gray-700 text-sm">{infoIcon('module')}<span>Current Module: module_phase1_lang_basics</span></div>
           </div>
