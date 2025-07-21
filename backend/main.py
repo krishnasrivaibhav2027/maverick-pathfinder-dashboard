@@ -830,17 +830,17 @@ async def get_trainees_for_skill_group(batch_id: str, skill: str = Path(...)):
     batch = await db.batches.find_one({"_id": ObjectId(batch_id)})
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
-    # Normalize skill for comparison
     skill_normalized = str(skill).strip().lower()
     print(f"[DEBUG] URL skill: '{skill}' | Normalized: '{skill_normalized}'")
+    matched_trainees = []
     for t in batch.get("trainees", []):
-        print(f"[DEBUG] Trainee: {t.get('name', '')}, Skill: '{t.get('skill', '')}', Normalized: '{str(t.get('skill', '')).strip().lower()}'")
-    trainees = [
-        t for t in batch.get("trainees", [])
-        if str(t.get("skill", "")).strip().lower() == skill_normalized
-    ]
-    print(f"[DEBUG] Matched {len(trainees)} trainees for skill '{skill_normalized}'")
-    return trainees
+        trainee_skill = t.get("skill", "") or t.get("specialization", "")
+        trainee_skill_normalized = str(trainee_skill).strip().lower()
+        print(f"[DEBUG] Trainee: {t.get('name', '')}, Skill: '{t.get('skill', '')}', Specialization: '{t.get('specialization', '')}', Used: '{trainee_skill}', Normalized: '{trainee_skill_normalized}'")
+        if trainee_skill_normalized == skill_normalized:
+            matched_trainees.append(t)
+    print(f"[DEBUG] Matched {len(matched_trainees)} trainees for skill '{skill_normalized}'")
+    return matched_trainees
 
 @app.get("/dashboard/stats")
 async def get_dashboard_stats():

@@ -1,8 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+const accent = "#FF512F";
+const glass = "bg-white/60 backdrop-blur-md shadow-2xl border border-white/30";
 const font = { fontFamily: 'Inter, ui-rounded, system-ui, sans-serif' };
 
 interface Trainee {
@@ -41,23 +46,61 @@ const TraineeDetail: React.FC = () => {
       .finally(() => setLoading(false));
   }, [empId]);
 
-  if (loading) return <div className="p-8 text-gray-400">Loading trainee details...</div>;
-  if (error) return <div className="p-8 text-red-500">{error}</div>;
+  if (loading) return <div className="text-center text-lg text-gray-400 py-10">Loading trainee details...</div>;
+  if (error) return <div className="text-center text-lg text-red-500 py-10">{error}</div>;
   if (!trainee) return null;
 
   return (
-    <div className="w-full flex flex-col items-start justify-start pt-2 pb-8 max-w-2xl">
-      <Button onClick={() => navigate(-1)} variant="outline" className="mb-6">Back</Button>
-      <h2 className="text-2xl font-bold mb-6" style={font}>Trainee Detail</h2>
-      <div className="bg-white/80 shadow rounded-xl px-8 py-6 w-full">
-        <div className="font-semibold text-lg text-orange-700 mb-2">{trainee.name}</div>
-        <div className="text-gray-500 text-sm mb-1">EmpID: {trainee.empId}</div>
-        <div className="text-gray-500 text-sm mb-1">Email: {trainee.email}</div>
-        <div className="text-gray-500 text-sm mb-1">Phase: {trainee.phase}</div>
-        <div className="text-gray-500 text-sm mb-1">Status: {trainee.status}</div>
-        <div className="text-gray-500 text-sm mb-1">Specialization: {trainee.specialization}</div>
-        <div className="text-gray-500 text-sm mb-1">Progress: {trainee.progress ?? 0}%</div>
-      </div>
+    <div className="container mx-auto px-6 py-10 flex justify-center">
+      <Card className="max-w-2xl w-full p-8 rounded-3xl shadow-2xl relative flex flex-col min-h-[500px]">
+        <div className="flex items-center gap-6 mb-6">
+          <Button
+            onClick={() => navigate(-1)}
+            className="bg-orange-100 hover:bg-orange-200 rounded-full p-2 mr-2 focus:outline-none"
+            aria-label="Back"
+            variant="outline"
+            size="icon"
+          >
+            <ArrowLeft className="h-6 w-6 text-orange-500" />
+          </Button>
+          <div className="h-20 w-20 rounded-full bg-orange-100 flex items-center justify-center text-3xl font-bold text-orange-500">
+            {trainee.name?.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+          </div>
+          <div>
+            <h2 className="text-2xl font-extrabold mb-1">{trainee.name}</h2>
+            <div className="text-gray-500 font-semibold">User ID: {trainee.empId}</div>
+            <div className="text-gray-500">Email: {trainee.email}</div>
+          </div>
+        </div>
+        <div className="mb-6">
+          <div className="font-bold text-orange-500 mb-2">Overall Progress</div>
+          <Progress value={trainee.progress || 0} className="w-full" />
+          <div className="text-right text-sm text-orange-500 font-semibold mt-1">{trainee.progress || 0}% complete</div>
+        </div>
+        <div className="mb-6">
+          <div className="font-bold text-orange-500 mb-2">Tasks Overview</div>
+          <div className="space-y-2">
+            {/* Placeholder for tasks, you can expand this if you have tasks data */}
+            <div className="rounded-xl bg-orange-50/60 p-4 text-gray-700">No tasks to display.</div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-4 mt-8 mb-4">
+          <div>
+            <div className="text-gray-500 font-semibold">Phase</div>
+            <Badge variant={trainee.phase === 2 ? "default" : "secondary"}>Phase {trainee.phase}</Badge>
+          </div>
+          <div>
+            <div className="text-gray-500 font-semibold">Status</div>
+            <Badge variant={trainee.status === 'active' ? 'default' : 'destructive'}>{trainee.status}</Badge>
+          </div>
+        </div>
+        <div className="flex items-center justify-between mt-auto pt-4">
+          <div>
+            <div className="text-gray-500 font-semibold">Specialization</div>
+            <Badge variant="outline">{trainee.specialization}</Badge>
+          </div>
+        </div>
+      </Card>
     </div>
   );
 };
