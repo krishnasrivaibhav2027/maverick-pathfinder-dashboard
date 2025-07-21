@@ -11,13 +11,13 @@ except ImportError:
                 return
             yield batch
 
-from fastapi import FastAPI, HTTPException, Body, UploadFile, File, APIRouter, Depends, Path, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Body, UploadFile, File, APIRouter, Depends, Path, WebSocket, WebSocketDisconnect, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from bson import ObjectId
 import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pydantic import BaseModel
 import zipfile
 import io
@@ -95,9 +95,13 @@ class Batch(BaseModel):
     accounts_created: Optional[bool] = False
 
 def serialize_doc(doc):
-    """Serialize MongoDB document for JSON response"""
+    """Serialize MongoDB document for JSON response, including datetime fields."""
     if doc and "_id" in doc:
         doc["_id"] = str(doc["_id"])
+    # Convert all datetime fields to ISO format
+    for k, v in doc.items():
+        if hasattr(v, 'isoformat'):
+            doc[k] = v.isoformat()
     return doc
 
 def collapse_single_letters(line):
@@ -364,7 +368,7 @@ async def get_admins():
 # Basic CRUD for trainees
 @app.get("/trainees")
 async def get_trainees():
-    """Get all trainees"""
+    """Get all trainees (no empId filter, for debugging/visibility)"""
     try:
         data = []
         cursor = db["trainees"].find()
@@ -731,7 +735,7 @@ async def get_batch(batch_id: str):
 @router.get("/batches")
 async def list_batches():
     batches = []
-    cursor = db.batches.find()
+    cursor = db.batches.find({"trainees.0": {"$exists": True}})  # Only batches with at least one trainee
     async for batch in cursor:
         batch_id = str(batch["_id"])
         batch["_id"] = batch_id
@@ -1343,6 +1347,66 @@ async def ensure_all_trainees_embedded_in_batches():
 @app.on_event("startup")
 async def run_migration_on_startup():
     await ensure_all_trainees_embedded_in_batches()
+
+@app.delete("/trainees/{emp_id}")
+async def delete_trainee(emp_id: str, background_tasks: BackgroundTasks):
+    """Soft-delete a trainee: move to deleted_trainees, log activity, remove from all batches, and robustly delete empty/invalid batches."""
+    trainee = await db["trainees"].find_one({"empId": emp_id})
+    if not trainee:
+        return JSONResponse(content={"error": "Trainee not found"}, status_code=404)
+    trainee["deleted_at"] = datetime.utcnow()
+    await db["deleted_trainees"].insert_one(trainee)
+    await db["trainees"].delete_one({"empId": emp_id})
+    # Remove trainee from all batches
+    await db["batches"].update_many({}, {"$pull": {"trainees": emp_id}})
+    # Robustly delete batches with no valid trainees
+    async for batch in db["batches"].find():
+        trainees = batch.get("trainees", [])
+        # Remove empty dicts or invalid objects
+        valid_trainees = [t for t in trainees if t and (isinstance(t, dict) and t.get("empId"))]
+        if not valid_trainees:
+            await db["batches"].delete_one({"_id": batch["_id"]})
+    # Log activity
+    activity = {
+        "type": "trainee_deleted",
+        "empId": emp_id,
+        "name": trainee.get("name"),
+        "timestamp": datetime.utcnow(),
+        "undo_available": True
+    }
+    await db["activities"].insert_one(activity)
+    # Schedule cleanup after 24 hours
+    background_tasks.add_task(cleanup_deleted_trainee, emp_id)
+    return JSONResponse(content={"success": True})
+
+async def cleanup_deleted_trainee(emp_id: str):
+    # Wait 24 hours, then remove from deleted_trainees if not restored
+    await asyncio.sleep(24 * 3600)
+    await db["deleted_trainees"].delete_one({"empId": emp_id})
+    await db["activities"].delete_many({"empId": emp_id, "type": "trainee_deleted"})
+
+@app.post("/trainees/restore/{emp_id}")
+async def restore_trainee(emp_id: str):
+    """Restore a soft-deleted trainee by empId."""
+    trainee = await db["deleted_trainees"].find_one({"empId": emp_id})
+    if not trainee:
+        return JSONResponse(content={"error": "No deleted trainee found"}, status_code=404)
+    trainee.pop("_id", None)
+    trainee.pop("deleted_at", None)
+    await db["trainees"].insert_one(trainee)
+    await db["deleted_trainees"].delete_one({"empId": emp_id})
+    # Log restore activity
+    activity = {
+        "type": "trainee_restored",
+        "empId": emp_id,
+        "name": trainee.get("name"),
+        "timestamp": datetime.utcnow().isoformat(),
+        "undo_available": False
+    }
+    await db["activities"].insert_one(activity)
+    # Remove the delete activity
+    await db["activities"].delete_many({"empId": emp_id, "type": "trainee_deleted"})
+    return JSONResponse(content={"message": "Trainee restored."})
 
 app.include_router(router)
 app.include_router(api_router, prefix="/api/v2")

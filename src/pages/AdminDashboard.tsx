@@ -27,7 +27,7 @@ import {
   Sun,
   Moon
 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams, useLocation } from "react-router-dom";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, PieChart, Pie, Cell, Legend } from 'recharts';
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
@@ -95,6 +95,9 @@ interface ActivityType {
   details?: string;
   timestamp: string;
   meta?: Record<string, unknown>;
+  undo_available?: boolean;
+  empId?: string;
+  name?: string;
 }
 
 const accent = "#FF512F";
@@ -110,11 +113,15 @@ const getAdminName = () => {
 const AdminDashboard = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState("");
+  const { tab } = useParams();
+  const location = useLocation();
+  const validTabs = ['overview', 'trainees', 'analytics', 'reports', 'onboarding'];
+  const initialTab = validTabs.includes(tab || '') ? tab : 'overview';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [trainees, setTrainees] = useState([]);
+  const [traineesLoading, setTraineesLoading] = useState(false);
   const [activeBatchCount, setActiveBatchCount] = useState(0);
   const adminName = getAdminName();
-  const [activeTab, setActiveTab] = useState('overview');
   const [overflowBatch, setOverflowBatch] = useState<OverflowBatch | null>(null);
 
   // New: Dashboard stats state
@@ -166,6 +173,11 @@ const AdminDashboard = () => {
     return false;
   });
 
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const [recentActivities, setRecentActivities] = useState([]);
+  const [recentActivitiesLoading, setRecentActivitiesLoading] = useState(true);
+
   useEffect(() => {
     if (darkMode) {
       document.documentElement.classList.add('dark');
@@ -176,20 +188,38 @@ const AdminDashboard = () => {
     }
   }, [darkMode]);
 
+  useEffect(() => {
+    // Sync tab with URL param
+    if (tab !== activeTab) {
+      if (validTabs.includes(tab || '')) {
+        setActiveTab(tab);
+      } else {
+        navigate('/admin-dashboard/overview', { replace: true });
+      }
+    }
+    // eslint-disable-next-line
+  }, [tab]);
+
+  useEffect(() => {
+    // Update URL when tab changes
+    if (tab !== activeTab) {
+      navigate(`/admin-dashboard/${activeTab}`, { replace: true });
+    }
+    // eslint-disable-next-line
+  }, [activeTab]);
+
   // Add a refresh function for active batches
   const fetchActiveBatchCount = () => {
     fetch("http://localhost:8000/batches")
       .then(res => res.json())
       .then((batches) => {
         const count = Array.isArray(batches)
-          ? batches.filter((b: BatchForCount & { trainees?: Partial<Trainee>[] }) => {
-              const visibleTrainees = Array.isArray(b.trainees)
-                ? b.trainees.filter(
-                    (t: Partial<Trainee>) => t.empId && t.empId !== '-' && t.empId.trim() !== ''
-                  )
-                : [];
-              return b.phase === 1 && !b.is_next_batch && visibleTrainees.length > 0;
-            }).length
+          ? batches.filter((b) =>
+              b.phase === 1 &&
+              !b.is_next_batch &&
+              Array.isArray(b.trainees) &&
+              b.trainees.some(t => t && typeof t === 'object' && t.empId && t.empId.trim() !== '')
+            ).length
           : 0;
         setActiveBatchCount(count);
       });
@@ -213,24 +243,18 @@ const AdminDashboard = () => {
       .finally(() => setStatsLoading(false));
   }, []);
 
+  // Fetch trainees whenever the trainees tab/route is active
   useEffect(() => {
-    const fetchTrainees = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const response = await fetch("http://localhost:8000/trainees", {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        const data = await response.json();
-        setTrainees(data);
-      } catch (error) {
-        console.error("Failed to fetch trainees:", error);
-      }
-    };
-
     if (activeTab === 'trainees') {
-      fetchTrainees();
+      setTraineesLoading(true);
+      fetch('http://localhost:8000/trainees')
+        .then(res => res.json())
+        .then(data => setTrainees(data))
+        .catch(err => {
+          setTrainees([]);
+          console.error('Failed to fetch trainees:', err);
+        })
+        .finally(() => setTraineesLoading(false));
     }
   }, [activeTab]);
 
@@ -308,7 +332,38 @@ const AdminDashboard = () => {
         method: 'DELETE',
       });
       if (response.ok) {
-        setTrainees(trainees.filter(trainee => trainee.empId !== empId));
+        // Refetch trainees after delete
+        setTraineesLoading(true);
+        fetch('http://localhost:8000/trainees')
+          .then(res => res.json())
+          .then(data => setTrainees(data))
+          .catch(() => setTrainees([]))
+          .finally(() => setTraineesLoading(false));
+        // Immediately update active batch count
+        fetchActiveBatchCount();
+        // Refetch batch progress
+        setBatchProgressLoading(true);
+        fetch('http://localhost:8000/batches/weekly-progress')
+          .then(res => res.json())
+          .then(data => setBatchProgress(data))
+          .catch(() => setBatchProgress([]))
+          .finally(() => setBatchProgressLoading(false));
+        // Refetch dashboard stats
+        setStatsLoading(true);
+        fetch('http://localhost:8000/dashboard/stats')
+          .then(res => res.json())
+          .then(data => setDashboardStats(data))
+          .catch(() => setDashboardStats(null))
+          .finally(() => setStatsLoading(false));
+        // Refetch overflow batch
+        fetch('http://localhost:8000/batches')
+          .then(res => res.json())
+          .then((batches) => {
+            if (Array.isArray(batches)) {
+              const overflow = batches.find((b) => b.is_next_batch);
+              setOverflowBatch(overflow || null);
+            }
+          });
         toast({ title: "✅ Trainee Deleted", description: `Trainee with ID ${empId} has been deleted.` });
       } else {
         toast({ variant: "destructive", title: "Deletion Failed", description: "Could not delete trainee." });
@@ -515,6 +570,40 @@ const AdminDashboard = () => {
     }
   };
 
+  // Fetch recent trainee delete/restore activities
+  const fetchRecentActivities = () => {
+    setRecentActivitiesLoading(true);
+    fetch('http://localhost:8000/activities?limit=10')
+      .then(res => res.json())
+      .then(data => setRecentActivities(data))
+      .catch(() => setRecentActivities([]))
+      .finally(() => setRecentActivitiesLoading(false));
+  };
+
+  useEffect(() => {
+    if (activeTab === 'overview') {
+      fetchRecentActivities();
+      const interval = setInterval(fetchRecentActivities, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab]);
+
+  const handleUndoDelete = async (empId: string) => {
+    try {
+      const res = await fetch(`http://localhost:8000/trainees/restore/${empId}`, { method: 'POST' });
+      if (res.ok) {
+        toast({ title: '✅ Trainee Restored', description: `Trainee with ID ${empId} has been restored.` });
+        fetchRecentActivities();
+        // Optionally refetch trainees if on trainees tab
+        if (activeTab === 'trainees') setTraineesLoading(true);
+      } else {
+        toast({ variant: 'destructive', title: 'Undo Failed', description: 'Could not restore trainee.' });
+      }
+    } catch {
+      toast({ variant: 'destructive', title: 'Undo Failed', description: 'Could not connect to the server.' });
+    }
+  };
+
   if (statsLoading) {
     return <div className="flex justify-center items-center min-h-screen text-xl font-bold">Loading dashboard statistics...</div>;
   }
@@ -561,14 +650,14 @@ const AdminDashboard = () => {
         {/* Tabs */}
         <div className="flex justify-center mb-10">
           <div className="flex gap-4 bg-white/60 backdrop-blur-md rounded-full shadow-lg p-2 border border-orange-100" style={{ fontFamily: 'Inter, ui-rounded, system-ui, sans-serif' }}>
-            {['overview', 'trainees', 'analytics', 'reports', 'onboarding'].map(tab => (
+            {validTabs.map(tabName => (
               <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-7 py-2 rounded-full font-semibold text-lg transition-all duration-200 shadow-sm border-2 ${activeTab === tab ? 'bg-gradient-to-r from-orange-500 to-orange-400 text-white border-orange-400 scale-105' : 'bg-white/80 text-orange-500 border-orange-200 hover:bg-orange-50 hover:scale-105'}`}
+                key={tabName}
+                onClick={() => setActiveTab(tabName)}
+                className={`px-7 py-2 rounded-full font-semibold text-lg transition-all duration-200 shadow-sm border-2 ${activeTab === tabName ? 'bg-gradient-to-r from-orange-500 to-orange-400 text-white border-orange-400 scale-105' : 'bg-white/80 text-orange-500 border-orange-200 hover:bg-orange-50 hover:scale-105'}`}
                 style={{ minWidth: 120 }}
               >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                {tabName.charAt(0).toUpperCase() + tabName.slice(1)}
               </button>
             ))}
           </div>
@@ -633,35 +722,32 @@ const AdminDashboard = () => {
                   <Clock className="h-7 w-7 text-orange-400" />
                   <span className="text-2xl font-bold text-orange-500">Recent Activities</span>
                 </div>
-                {activitiesLoading ? (
+                {recentActivitiesLoading ? (
                   <div className="text-lg text-gray-400">Loading...</div>
-                ) : activitiesError ? (
-                  <div className="text-lg text-red-500">Error: {activitiesError}</div>
-                ) : activities.length === 0 ? (
+                ) : recentActivities.length === 0 ? (
                   <div className="text-lg text-gray-400">No recent activities</div>
                 ) : (
                   <div className="flex flex-col gap-4">
-                    {activities.map((activity, idx) => {
-                      const typeInfo = activityTypeMap[activity.type] || activityTypeMap.default;
-                      return (
-                        <div key={activity.id} className={`flex items-center justify-between rounded-xl px-6 py-4 ${typeInfo.color}`}>
-                          <div className="flex items-center gap-4">
-                            {typeInfo.icon}
-                            <div>
-                              <div className={`font-semibold ${activity.type === 'alert' ? 'text-orange-600' : activity.type === 'phase_completed' ? 'text-emerald-700' : activity.type === 'trainee_joined' ? 'text-blue-700' : 'text-gray-700'}`}>{activity.user?.name ? <span>{activity.user.name} </span> : null}{activity.message}</div>
-                              {activity.details && <div className="text-gray-500 text-sm mt-1">{activity.details}</div>}
-                            </div>
-                          </div>
-                          <div className="text-gray-400 text-sm ml-4 whitespace-nowrap">{formatTimeAgo(activity.timestamp)}</div>
+                    {recentActivities.map((activity, idx) => (
+                      <div key={activity._id || idx} className="flex items-center justify-between rounded-xl px-6 py-4 bg-orange-50/60">
+                        <div>
+                          {activity.type === 'trainee_deleted' && (
+                            <span className="font-semibold text-orange-600">Trainee {activity.name} {activity.empId} was removed</span>
+                          )}
+                          {activity.type === 'trainee_restored' && (
+                            <span className="font-semibold text-green-600">Trainee {activity.name} {activity.empId} has been restored</span>
+                          )}
                         </div>
-                      );
-                    })}
-                    <button
-                      className="mt-4 px-6 py-2 rounded-full bg-gradient-to-r from-orange-500 to-orange-400 text-white font-semibold shadow hover:from-orange-600 hover:to-orange-500 transition-all"
-                      onClick={() => { setShowAllActivities(true); fetchAllActivities(); }}
-                    >
-                      More Activities
-                    </button>
+                        {activity.type === 'trainee_deleted' && activity.undo_available && (
+                          <button
+                            className="bg-green-500 hover:bg-green-600 text-white font-semibold px-5 py-2 rounded-full shadow transition-colors text-base"
+                            onClick={() => handleUndoDelete(activity.empId)}
+                          >
+                            Undo
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
                 {/* Modal for all activities */}
@@ -745,64 +831,70 @@ const AdminDashboard = () => {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {filteredTrainees.map((trainee) => (
-                  <div key={trainee.empId} className="relative">
-                    <Link to={`/trainee-dashboard/${trainee.empId}`} className="block text-inherit no-underline">
-                      <div className={`rounded-3xl ${glass} p-6 hover:scale-105 transition-transform flex flex-col h-full shadow-xl`}>
-                        <div className="flex items-center gap-4 border-b pb-4 mb-4">
-                          <Avatar className="h-14 w-14">
-                            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${trainee.name}`} />
-                            <AvatarFallback>{trainee.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <h3 className="font-semibold text-lg">{trainee.name}</h3>
-                            <p className="text-sm text-gray-600">{trainee.empId}</p>
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 text-sm mb-2">
-                          <div>
-                            <p className="text-gray-500">Phase</p>
-                            <Badge variant={trainee.phase === 2 ? "default" : "secondary"}>
-                              Phase {trainee.phase}
-                            </Badge>
-                          </div>
-                          <div>
-                            <p className="text-gray-500">Status</p>
-                            <Badge variant={trainee.status === 'active' ? 'default' : 'destructive'}>{trainee.status}</Badge>
-                          </div>
-                          <div className="col-span-2">
-                            <p className="text-gray-500">Progress</p>
-                            <div className="flex items-center gap-2">
-                              <Progress value={trainee.progress} className="w-full" />
-                              <p className="font-semibold">{trainee.progress}%</p>
+              {traineesLoading ? (
+                <div className="text-center text-lg text-gray-400 py-10">Loading trainees...</div>
+              ) : (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  {filteredTrainees.map((trainee) => (
+                    <div key={trainee.empId} className="relative flex flex-col h-full">
+                      <Link to={`/admin-dashboard/trainees/${trainee.empId}`} className="block text-inherit no-underline flex-1">
+                        <div className={`rounded-3xl ${glass} p-6 hover:scale-105 transition-transform flex flex-col h-full shadow-xl`}>
+                          <div className="flex items-center gap-4 border-b pb-4 mb-4">
+                            <Avatar className="h-14 w-14">
+                              <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${trainee.name}`} />
+                              <AvatarFallback>{trainee.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <h3 className="font-semibold text-lg">{trainee.name}</h3>
+                              <p className="text-sm text-gray-600">{trainee.empId}</p>
                             </div>
                           </div>
-                          <div className="col-span-2">
-                            <p className="text-gray-500">Score</p>
-                            <p className="font-semibold text-green-600">{trainee.score}%</p>
-                          </div>
-                          <div className="col-span-2">
-                            <p className="text-gray-500">Specialization</p>
-                            <Badge variant="outline">{trainee.specialization}</Badge>
+                          <div className="grid grid-cols-2 gap-4 text-sm mb-2">
+                            <div>
+                              <p className="text-gray-500">Phase</p>
+                              <Badge variant={trainee.phase === 2 ? "default" : "secondary"}>
+                                Phase {trainee.phase}
+                              </Badge>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Status</p>
+                              <Badge variant={trainee.status === 'active' ? 'default' : 'destructive'}>{trainee.status}</Badge>
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-gray-500">Progress</p>
+                              <div className="flex items-center gap-2">
+                                <Progress value={trainee.progress} className="w-full" />
+                                <p className="font-semibold">{trainee.progress}%</p>
+                              </div>
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-gray-500">Score</p>
+                              <p className="font-semibold text-green-600">{trainee.score}%</p>
+                            </div>
+                            <div className="col-span-2">
+                              <p className="text-gray-500">Specialization</p>
+                              <div className="flex items-center justify-between gap-2">
+                                <Badge variant="outline">{trainee.specialization}</Badge>
+                                <button
+                                  className="bg-red-500 hover:bg-red-600 text-white font-semibold px-6 py-2 rounded-full shadow transition-colors text-base ml-2"
+                                  aria-label="Delete Trainee"
+                                  onClick={e => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    handleDelete(trainee.empId);
+                                  }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </Link>
-                    <Button
-                      variant="destructive"
-                      size="icon"
-                      className="absolute top-4 right-4"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(trainee.empId);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
           {activeTab === 'analytics' && (

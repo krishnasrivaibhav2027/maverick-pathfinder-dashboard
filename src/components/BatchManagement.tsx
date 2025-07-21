@@ -161,6 +161,19 @@ const BatchManagement = () => {
     }
   }, [location.state]);
 
+  // Filter batches to only those with at least one trainee
+  const visibleBatches = Array.isArray(batches)
+    ? batches.filter(b => Array.isArray(b.trainees) && b.trainees.length > 0)
+    : [];
+
+  if (visibleBatches.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-gray-400 text-xl font-semibold">
+        No batches available
+      </div>
+    );
+  }
+
   // 1. Phase selection
   if (!selectedPhase) {
     return (

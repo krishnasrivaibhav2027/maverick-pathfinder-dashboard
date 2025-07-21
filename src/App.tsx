@@ -13,6 +13,7 @@ import NextBatchOverflow from "./pages/NextBatchOverflow";
 import CourseDetailPage from "./pages/CourseDetailPage";
 import TraineeLayout from "./components/TraineeLayout";
 import AdminLayout from "./components/AdminLayout";
+import AdminTraineeDetail from "./pages/AdminTraineeDetail";
 
 
 const queryClient = new QueryClient();
@@ -43,7 +44,9 @@ const App = () => (
               <Route path="/training/course/:courseId" element={<CourseDetailPage />} />
             </Route>
             <Route element={<AdminLayout><Outlet /></AdminLayout>}>
-              <Route path="/admin-dashboard" element={<AdminDashboard />} />
+              <Route path="/admin-dashboard" element={<Navigate to="/admin-dashboard/overview" replace />} />
+              <Route path="/admin-dashboard/:tab" element={<AdminDashboard />} />
+              <Route path="/admin-dashboard/trainees/:empId" element={<AdminTraineeDetail />} />
               <Route path="/admin/active-batches" element={<ActiveBatches />} />
               <Route path="/admin/next-batch" element={<NextBatchOverflow />} />
             </Route>
