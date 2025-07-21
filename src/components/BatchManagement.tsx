@@ -116,10 +116,10 @@ const BatchManagement = () => {
 
   // Listen for batches-updated event at the top level
   useEffect(() => {
-    const refetchOnEvent = () => fetchBatches();
+    const refetchOnEvent = () => fetchBatches(selectedPhase);
     window.addEventListener('batches-updated', refetchOnEvent);
     return () => window.removeEventListener('batches-updated', refetchOnEvent);
-  }, []);
+  }, [selectedPhase]);
 
   // Fetch phases on mount
   useEffect(() => {
