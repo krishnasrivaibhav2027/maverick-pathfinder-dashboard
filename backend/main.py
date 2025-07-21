@@ -798,9 +798,14 @@ async def get_skill_groups_for_batch(batch_id: str):
     batch = await db.batches.find_one({"_id": ObjectId(batch_id)})
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
+    batch_skill = batch.get("skill", "unknown").lower()
     skill_groups = {}
     for trainee in batch.get("trainees", []):
-        skill = trainee.get("skill", "unknown").lower()
+        # Use trainee skill, fallback to batch skill if missing/empty
+        skill = trainee.get("skill")
+        if not skill or not str(skill).strip():
+            skill = batch_skill
+        skill = str(skill).lower()
         if skill not in skill_groups:
             skill_groups[skill] = {"trainees": [], "total_progress": 0}
         skill_groups[skill]["trainees"].append(trainee)
@@ -825,7 +830,16 @@ async def get_trainees_for_skill_group(batch_id: str, skill: str = Path(...)):
     batch = await db.batches.find_one({"_id": ObjectId(batch_id)})
     if not batch:
         raise HTTPException(status_code=404, detail="Batch not found")
-    trainees = [t for t in batch.get("trainees", []) if t.get("skill", "").lower() == skill.lower()]
+    # Normalize skill for comparison
+    skill_normalized = str(skill).strip().lower()
+    print(f"[DEBUG] URL skill: '{skill}' | Normalized: '{skill_normalized}'")
+    for t in batch.get("trainees", []):
+        print(f"[DEBUG] Trainee: {t.get('name', '')}, Skill: '{t.get('skill', '')}', Normalized: '{str(t.get('skill', '')).strip().lower()}'")
+    trainees = [
+        t for t in batch.get("trainees", [])
+        if str(t.get("skill", "")).strip().lower() == skill_normalized
+    ]
+    print(f"[DEBUG] Matched {len(trainees)} trainees for skill '{skill_normalized}'")
     return trainees
 
 @app.get("/dashboard/stats")
@@ -1335,12 +1349,14 @@ async def ensure_all_trainees_embedded_in_batches():
         else:
             from datetime import datetime
             batch_doc = {
-                'batch_id': str(trainee.get('_id')),
-                'phase': phase,
+                'batch_number': 1,  # or increment as needed
                 'skill': skill,
-                'trainees': [embedded],
+                'phase': phase,
                 'is_next_batch': False,
-                'created_at': trainee.get('created_at', datetime.now().isoformat())
+                'trainees': [embedded],
+                'created_at': trainee.get('created_at', datetime.now().isoformat()),
+                'accounts_created': False,
+                'next_batch_date': None
             }
             await batches.insert_one(batch_doc)
 

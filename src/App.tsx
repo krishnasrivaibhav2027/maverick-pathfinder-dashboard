@@ -14,6 +14,11 @@ import CourseDetailPage from "./pages/CourseDetailPage";
 import TraineeLayout from "./components/TraineeLayout";
 import AdminLayout from "./components/AdminLayout";
 import AdminTraineeDetail from "./pages/AdminTraineeDetail";
+import PhaseSelection from "./pages/batchflow/PhaseSelection";
+import BatchList from "./pages/batchflow/BatchList";
+import SkillGroupList from "./pages/batchflow/SkillGroupList";
+import TraineeList from "./pages/batchflow/TraineeList";
+import TraineeDetail from "./pages/batchflow/TraineeDetail";
 
 
 const queryClient = new QueryClient();
@@ -47,7 +52,14 @@ const App = () => (
               <Route path="/admin-dashboard" element={<Navigate to="/admin-dashboard/overview" replace />} />
               <Route path="/admin-dashboard/:tab" element={<AdminDashboard />} />
               <Route path="/admin-dashboard/trainees/:empId" element={<AdminTraineeDetail />} />
-              <Route path="/admin/active-batches" element={<ActiveBatches />} />
+              <Route path="/admin/active-batches" element={<ActiveBatches />}/>
+              <Route path="/admin/active-batches" >
+                <Route index element={<PhaseSelection />} />
+                <Route path="phase/:phaseId" element={<BatchList />} />
+                <Route path="phase/:phaseId/batch/:batchId" element={<SkillGroupList />} />
+                <Route path="phase/:phaseId/batch/:batchId/skill/:skill" element={<TraineeList />} />
+                <Route path="phase/:phaseId/batch/:batchId/skill/:skill/trainee/:empId" element={<TraineeDetail />} />
+              </Route>
               <Route path="/admin/next-batch" element={<NextBatchOverflow />} />
             </Route>
           </Route>

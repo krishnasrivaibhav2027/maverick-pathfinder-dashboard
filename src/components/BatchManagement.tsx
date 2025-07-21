@@ -1,4 +1,4 @@
-import React, { useEffect, useState, ReactNode } from "react";
+import React, { useEffect, useState, useCallback, ReactNode } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Users, ArrowLeft, ChevronRight, Send, UserCircle, Layers } from "lucide-react";
@@ -95,13 +95,12 @@ const BatchManagement = () => {
   const [batchActionStatus, setBatchActionStatus] = useState<{ [batchId: string]: 'idle' | 'loading' | 'success' | 'error' }>({});
   const [accountStatus, setAccountStatus] = useState<{ [email: string]: { status: string; empId?: string; password?: string } }>({});
 
-  // Add a fetchBatches function for reuse
-  const fetchBatches = async (phase = selectedPhase) => {
+  // Use useCallback for fetchBatches
+  const fetchBatches = useCallback(async (phase = selectedPhase) => {
     if (phase) {
       const res = await fetch(`http://localhost:8000/batches/phase/${phase}`);
       const data = await res.json();
       setBatches(data);
-      // If batches are restored after undo, re-select the phase to trigger UI update
       if (data.length > 0 && !selectedBatch && !selectedBatchGroup) {
         setSelectedPhase(phase);
       }
@@ -112,14 +111,13 @@ const BatchManagement = () => {
       setSelectedSkill(null);
       setTrainees([]);
     }
-  };
+  }, [selectedPhase, selectedBatch, selectedBatchGroup]);
 
-  // Listen for batches-updated event at the top level
+  // Now include fetchBatches in the dependency array
   useEffect(() => {
-    const refetchOnEvent = () => fetchBatches(selectedPhase);
-    window.addEventListener('batches-updated', refetchOnEvent);
-    return () => window.removeEventListener('batches-updated', refetchOnEvent);
-  }, [selectedPhase]);
+    fetchBatches();
+    //slint-disable-next-line
+  }, [selectedPhase, fetchBatches]);
 
   // Fetch phases on mount
   useEffect(() => {
@@ -135,12 +133,6 @@ const BatchManagement = () => {
         setAllPhases(phases);
       });
   }, []);
-
-  // Replace useEffect for batches with this
-  useEffect(() => {
-    fetchBatches();
-    // eslint-disable-next-line
-  }, [selectedPhase]);
 
   // Fetch skill groups for selected batch
   useEffect(() => {
@@ -172,15 +164,9 @@ const BatchManagement = () => {
     }
   }, [location.state]);
 
-  // Filter batches to only those with at least one trainee
-  const visibleBatches = Array.isArray(batches)
-    ? batches.filter(b => Array.isArray(b.trainees) && b.trainees.length > 0)
-    : [];
+  // Remove the filter that excludes batches with no trainees
+  const visibleBatches = Array.isArray(batches) ? batches : [];
 
-  if (visibleBatches.length === 0 && batches.length > 0) {
-    if (selectedPhase) setSelectedPhase(null);
-    // Do not return; let the component render the phase selection UI
-  }
   if (visibleBatches.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-gray-400 text-xl font-semibold">
@@ -235,10 +221,9 @@ const BatchManagement = () => {
           {batchNumbers.map((batchNum: number) => {
             const batchesForNum = batchMap[batchNum];
             return batchesForNum.map(batch => {
-              const visibleTrainees = (batch.trainees || []).filter(
-                t => t && typeof t === 'object' && t.name && t.empId && t.email
-              );
-              const avgProgress = visibleTrainees.length > 0 ? visibleTrainees.reduce((acc, t) => acc + ((t as Trainee).progress || 0), 0) / visibleTrainees.length : 0;
+              // Remove the visibleTrainees filter here
+              const traineesCount = Array.isArray(batch.trainees) ? batch.trainees.length : 0;
+              const avgProgress = traineesCount > 0 ? batch.trainees.reduce((acc, t) => acc + ((t as Trainee).progress || 0), 0) / traineesCount : 0;
               return (
                 <button
                   key={batch.skill}
@@ -253,6 +238,7 @@ const BatchManagement = () => {
                 >
                   <Users className="h-8 w-8 text-orange-400 mb-1" />
                   <span>Batch {batchNum}</span>
+                  <span className="text-xs text-gray-500 mt-1">{traineesCount === 0 ? 'No trainees in this batch' : `${traineesCount} trainee${traineesCount > 1 ? 's' : ''}`}</span>
                 </button>
               );
             });
