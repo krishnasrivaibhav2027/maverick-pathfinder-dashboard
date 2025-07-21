@@ -141,27 +141,20 @@ async def get_batch_by_id(batch_id: str):
     return Batch(**doc) if doc else None
 
 async def get_all_batches():
-    batches_cursor = _db.batches.find({})
+    # Only find batches that have at least one trainee
+    batches_cursor = _db.batches.find({'trainees.0': {'$exists': True}})
     batches = []
     async for batch in batches_cursor:
-        trainee_ids = batch.get('trainees', [])
-        trainees = []
-        if trainee_ids:
-            # Ensure all IDs are ObjectId type
-            object_ids = [ObjectId(tid) if not isinstance(tid, ObjectId) else tid for tid in trainee_ids]
-            trainees_cursor = _db.trainees.find({'_id': {'$in': object_ids}})
-            async for trainee in trainees_cursor:
-                trainees.append({
-                    'name': trainee.get('name'),
-                    'empId': trainee.get('empId'),
-                    'email': trainee.get('email'),
-                    'status': trainee.get('status'),
-                    'phase': trainee.get('phase'),
-                    'progress': trainee.get('progress'),
-                    # Add more fields as needed
-                })
-        batch['trainees'] = trainees
+        # Since trainees are embedded, no need to fetch them separately
+        # But we can re-validate if needed, or just trust the embedded data
+        # For simplicity, we'll return the embedded data directly
+
+        # Optional: If you need to ensure trainees still exist in the main collection
+        # and get the latest data, you can still perform a lookup.
+        # However, the frontend logic seems to rely on the presence of trainees in the batch document itself.
+
         batches.append(Batch(**batch))
+
     return batches
 
 async def update_batch(batch_id: str, update_data: dict):
