@@ -216,7 +216,12 @@ const AdminDashboard = () => {
   useEffect(() => {
     const fetchTrainees = async () => {
       try {
-        const response = await fetch("http://localhost:8000/trainees");
+        const token = localStorage.getItem('token');
+        const response = await fetch("http://localhost:8000/trainees", {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
         const data = await response.json();
         setTrainees(data);
       } catch (error) {
@@ -224,8 +229,10 @@ const AdminDashboard = () => {
       }
     };
 
-    fetchTrainees();
-  }, []);
+    if (activeTab === 'trainees') {
+      fetchTrainees();
+    }
+  }, [activeTab]);
 
   // Replace the useEffect for active batch count
   useEffect(() => {
