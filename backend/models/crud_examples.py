@@ -59,6 +59,13 @@ async def update_trainee(emp_id: str, update_data: dict):
 async def delete_trainee(emp_id: str):
     await _db.trainees.delete_one({'empId': emp_id})
 
+async def get_all_trainees():
+    trainees_cursor = _db.trainees.find({})
+    trainees = []
+    async for trainee in trainees_cursor:
+        trainees.append(Trainee(**trainee))
+    return trainees
+
 # --- Course CRUD ---
 async def create_course(course: Course):
     doc = course.dict(by_alias=True, exclude_unset=True)

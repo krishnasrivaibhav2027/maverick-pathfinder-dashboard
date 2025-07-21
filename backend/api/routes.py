@@ -19,6 +19,13 @@ async def register_trainee(trainee: Trainee):
     created = await crud_examples.get_user_by_empid(trainee.empId)
     return created
 
+@router.get('/trainees', response_model=List[Trainee])
+async def get_all_trainees(user=Depends(get_current_user)):
+    if user.get('role') != 'admin':
+        raise HTTPException(status_code=403, detail='Admin only')
+    trainees = await crud_examples.get_all_trainees()
+    return trainees
+
 @router.get('/trainees/{emp_id}', response_model=Trainee)
 async def get_user_profile(emp_id: str, user=Depends(get_current_user)):
     if user['empId'] != emp_id and user.get('role') != 'admin':
