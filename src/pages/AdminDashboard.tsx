@@ -596,6 +596,8 @@ const AdminDashboard = () => {
         fetchRecentActivities();
         // Optionally refetch trainees if on trainees tab
         if (activeTab === 'trainees') setTraineesLoading(true);
+        // Notify BatchManagement to refetch batches
+        window.dispatchEvent(new Event('batches-updated'));
       } else {
         toast({ variant: 'destructive', title: 'Undo Failed', description: 'Could not restore trainee.' });
       }

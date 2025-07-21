@@ -1350,22 +1350,20 @@ async def run_migration_on_startup():
 
 @app.delete("/trainees/{emp_id}")
 async def delete_trainee(emp_id: str, background_tasks: BackgroundTasks):
-    """Soft-delete a trainee: move to deleted_trainees, log activity, remove from all batches, and robustly delete empty/invalid batches."""
+    """Soft-delete a trainee: move to deleted_trainees, log activity, remove from all batches by empId, and delete empty batches."""
     trainee = await db["trainees"].find_one({"empId": emp_id})
     if not trainee:
         return JSONResponse(content={"error": "Trainee not found"}, status_code=404)
     trainee["deleted_at"] = datetime.utcnow()
     await db["deleted_trainees"].insert_one(trainee)
     await db["trainees"].delete_one({"empId": emp_id})
-    # Remove trainee from all batches
-    await db["batches"].update_many({}, {"$pull": {"trainees": emp_id}})
-    # Robustly delete batches with no valid trainees
-    async for batch in db["batches"].find():
-        trainees = batch.get("trainees", [])
-        # Remove empty dicts or invalid objects
-        valid_trainees = [t for t in trainees if t and (isinstance(t, dict) and t.get("empId"))]
-        if not valid_trainees:
-            await db["batches"].delete_one({"_id": batch["_id"]})
+    # Remove trainee object from all batches by empId
+    await db["batches"].update_many({}, {"$pull": {"trainees": {"empId": emp_id}}})
+    # Delete batches with zero trainees
+    await db["batches"].delete_many({"$or": [
+        {"trainees": {"$exists": False}},
+        {"trainees": {"$size": 0}}
+    ]})
     # Log activity
     activity = {
         "type": "trainee_deleted",
@@ -1387,7 +1385,7 @@ async def cleanup_deleted_trainee(emp_id: str):
 
 @app.post("/trainees/restore/{emp_id}")
 async def restore_trainee(emp_id: str):
-    """Restore a soft-deleted trainee by empId."""
+    """Restore a soft-deleted trainee by empId, and restore to the correct batch."""
     trainee = await db["deleted_trainees"].find_one({"empId": emp_id})
     if not trainee:
         return JSONResponse(content={"error": "No deleted trainee found"}, status_code=404)
@@ -1395,6 +1393,37 @@ async def restore_trainee(emp_id: str):
     trainee.pop("deleted_at", None)
     await db["trainees"].insert_one(trainee)
     await db["deleted_trainees"].delete_one({"empId": emp_id})
+    # Restore trainee to the correct batch
+    batch_query = {
+        "phase": trainee.get("phase", 1),
+        "skill": trainee.get("specialization", "python"),
+        "is_next_batch": False
+    }
+    batch = await db["batches"].find_one(batch_query)
+    trainee_embed = {
+        "name": trainee.get("name"),
+        "email": trainee.get("email"),
+        "empId": trainee.get("empId"),
+        "phase": trainee.get("phase", 1),
+        "status": trainee.get("status", "active"),
+        "specialization": trainee.get("specialization", "python"),
+        "progress": trainee.get("progress", 0),
+        "created_at": trainee.get("created_at"),
+    }
+    if batch:
+        await db["batches"].update_one({"_id": batch["_id"]}, {"$push": {"trainees": trainee_embed}})
+    else:
+        batch_doc = {
+            "batch_number": 1,  # or increment as needed
+            "skill": trainee.get("specialization", "python"),
+            "phase": trainee.get("phase", 1),
+            "is_next_batch": False,
+            "trainees": [trainee_embed],
+            "created_at": trainee.get("created_at") or datetime.utcnow().isoformat(),
+            "accounts_created": False,
+            "next_batch_date": None
+        }
+        await db["batches"].insert_one(batch_doc)
     # Log restore activity
     activity = {
         "type": "trainee_restored",

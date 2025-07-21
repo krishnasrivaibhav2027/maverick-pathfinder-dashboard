@@ -101,6 +101,10 @@ const BatchManagement = () => {
       const res = await fetch(`http://localhost:8000/batches/phase/${phase}`);
       const data = await res.json();
       setBatches(data);
+      // If batches are restored after undo, re-select the phase to trigger UI update
+      if (data.length > 0 && !selectedBatch && !selectedBatchGroup) {
+        setSelectedPhase(phase);
+      }
     } else {
       setBatches([]);
       setSelectedBatch(null);
@@ -109,6 +113,13 @@ const BatchManagement = () => {
       setTrainees([]);
     }
   };
+
+  // Listen for batches-updated event at the top level
+  useEffect(() => {
+    const refetchOnEvent = () => fetchBatches();
+    window.addEventListener('batches-updated', refetchOnEvent);
+    return () => window.removeEventListener('batches-updated', refetchOnEvent);
+  }, []);
 
   // Fetch phases on mount
   useEffect(() => {
@@ -166,6 +177,10 @@ const BatchManagement = () => {
     ? batches.filter(b => Array.isArray(b.trainees) && b.trainees.length > 0)
     : [];
 
+  if (visibleBatches.length === 0 && batches.length > 0) {
+    if (selectedPhase) setSelectedPhase(null);
+    // Do not return; let the component render the phase selection UI
+  }
   if (visibleBatches.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-gray-400 text-xl font-semibold">
