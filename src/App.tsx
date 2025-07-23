@@ -52,6 +52,7 @@ const App = () => (
               <Route path="/admin-dashboard" element={<Navigate to="/admin-dashboard/overview" replace />} />
               <Route path="/admin-dashboard/:tab" element={<AdminDashboard />} />
               <Route path="/admin-dashboard/trainees/:empId" element={<AdminTraineeDetail />} />
+              <Route path="/trainee/:empId" element={<AdminTraineeDetail />} />
               <Route path="/admin/active-batches" element={<ActiveBatches />}/>
               <Route path="/admin/active-batches" >
                 <Route index element={<PhaseSelection />} />

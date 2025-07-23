@@ -64,8 +64,8 @@ const TraineeList: React.FC = () => {
               tabIndex={0}
               className="rounded-3xl bg-white p-8 flex flex-col items-center justify-center shadow-xl transition-transform hover:scale-105 border border-orange-100 min-w-[220px] max-w-[260px] min-h-[220px] cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-400"
               style={{ boxShadow: '0 8px 32px 0 #ff7c2b22', ...font }}
-              onClick={() => navigate(`trainee/${trainee.empId}`)}
-              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate(`trainee/${trainee.empId}`); }}
+              onClick={() => navigate(`/trainee/${trainee.empId}`)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate(`/trainee/${trainee.empId}`); }}
             >
               <Avatar className="h-14 w-14 mb-3 shadow">
                 <AvatarFallback className="bg-orange-100 text-orange-500 font-bold text-2xl">
