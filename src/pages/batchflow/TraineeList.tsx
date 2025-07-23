@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Users, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Card } from "@/components/ui/card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const font = { fontFamily: 'Inter, ui-rounded, system-ui, sans-serif' };
 
@@ -35,50 +37,56 @@ const TraineeList: React.FC = () => {
 
   return (
     <div className="w-full flex flex-col items-start justify-start pt-2 pb-8">
-      <Button onClick={() => navigate(-1)} variant="outline" className="mb-6">Back</Button>
-      <h2 className="text-2xl font-bold mb-6" style={font}>Trainees in {skill}</h2>
-      <div className="rounded-2xl bg-white/80 shadow p-6 w-full max-w-4xl">
-        <div className="text-lg font-bold text-orange-500 mb-4 flex items-center gap-2"><Users className="h-6 w-6 text-orange-400" /> Trainees ({trainees.length})</div>
-        <table className="w-full rounded-2xl overflow-hidden">
-          <thead>
-            <tr className="bg-orange-100 text-orange-500">
-              <th className="py-3 px-4 font-bold text-center" style={{width: '80px'}}>Photo</th>
-              <th className="py-3 px-4 font-bold text-left" style={{minWidth: '180px', maxWidth: '260px'}}>Name</th>
-              <th className="py-3 px-4 font-bold text-center" style={{width: '90px'}}>User ID</th>
-              <th className="py-3 px-4 font-bold text-left" style={{minWidth: '220px', maxWidth: '320px'}}>Email</th>
-              <th className="py-3 px-4 font-bold text-center" style={{width: '160px'}}>Progress</th>
-              <th className="py-3 px-4 font-bold text-center" style={{width: '110px'}}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {trainees.map((trainee, idx) => {
-              const progressValue = typeof trainee.progress === 'number' ? trainee.progress : 0;
-              return (
-                <tr key={trainee.email} className={idx % 2 === 0 ? "bg-white/90" : "bg-orange-50/60"}>
-                  <td className="py-3 px-4 text-center align-middle" style={{width: '80px'}}>
-                    <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center font-bold text-orange-500 text-lg shadow mx-auto">
-                      {getInitials(trainee.name)}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 align-middle font-semibold text-orange-700 text-base text-left" style={{minWidth: '180px', maxWidth: '260px'}}>
-                    {trainee.name}
-                  </td>
-                  <td className="py-3 px-4 text-gray-500 text-center align-middle" style={{width: '90px'}}>{trainee.empId}</td>
-                  <td className="py-3 px-4 text-gray-500 text-left align-middle" style={{minWidth: '220px', maxWidth: '320px'}}>{trainee.email}</td>
-                  <td className="py-3 px-4 align-middle text-center" style={{width: '160px'}}>
-                    <div className="flex items-center gap-2 justify-center">
-                      <Progress value={progressValue} className="w-28 h-2 bg-orange-100" style={{ accentColor: '#FF7C2B' }} />
-                      <span className="text-xs text-orange-400 font-bold">{progressValue}%</span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 align-middle text-center" style={{width: '110px'}}>
-                    <Button variant="outline" size="sm" onClick={() => navigate(`trainee/${trainee.empId}`)}>View Details</Button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="flex flex-row items-center mb-8 mt-2 pl-0">
+        <Button
+          onClick={() => navigate(-1)}
+          variant="outline"
+          className="rounded-full px-5 py-2 font-semibold border-orange-200 text-orange-500 hover:bg-orange-50 hover:text-orange-600 bg-white/80 flex items-center gap-2"
+          style={font}
+        >
+          <ArrowLeft className="h-5 w-5 text-orange-500" />
+          Back
+        </Button>
+        <h2
+          className="text-2xl font-bold flex items-center gap-2 text-orange-500 ml-4"
+          style={font}
+        >
+          Trainees in {skill}
+        </h2>
+      </div>
+      <div className="flex flex-row flex-wrap gap-8">
+        {trainees.map((trainee) => {
+          const progressValue = typeof trainee.progress === 'number' ? trainee.progress : 0;
+          return (
+            <div
+              key={trainee.email}
+              role="button"
+              tabIndex={0}
+              className="rounded-3xl bg-white p-8 flex flex-col items-center justify-center shadow-xl transition-transform hover:scale-105 border border-orange-100 min-w-[220px] max-w-[260px] min-h-[220px] cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-400"
+              style={{ boxShadow: '0 8px 32px 0 #ff7c2b22', ...font }}
+              onClick={() => navigate(`trainee/${trainee.empId}`)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate(`trainee/${trainee.empId}`); }}
+            >
+              <Avatar className="h-14 w-14 mb-3 shadow">
+                <AvatarFallback className="bg-orange-100 text-orange-500 font-bold text-2xl">
+                  {getInitials(trainee.name)}
+                </AvatarFallback>
+              </Avatar>
+              <span className="text-xl font-extrabold text-orange-500 mb-1 tracking-tight text-center" style={{ letterSpacing: '-0.03em' }}>
+                {trainee.name}
+              </span>
+              <span className="text-base text-gray-500 font-semibold mb-1">{trainee.empId}</span>
+              <span className="text-base text-gray-400 font-medium mb-2">{trainee.email}</span>
+              <div className="flex flex-col items-center w-full mt-2">
+                <span className="text-sm text-gray-400 font-medium mb-1">Avg Progress:</span>
+                <div className="flex items-center gap-2 w-full justify-center">
+                  <Progress value={progressValue} className="w-24 h-2 bg-orange-100" style={{ accentColor: '#FF7C2B' }} />
+                  <span className="text-sm text-orange-500 font-bold">{progressValue}%</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

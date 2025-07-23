@@ -4,6 +4,8 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { ArrowLeft } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
 const accent = "#FF512F";
 const glass = "bg-white/60 backdrop-blur-md shadow-2xl border border-white/30";
@@ -14,6 +16,9 @@ export default function AdminTraineeDetail() {
   const [trainee, setTrainee] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -87,10 +92,49 @@ export default function AdminTraineeDetail() {
           <button
             className="bg-red-500 hover:bg-red-600 text-white font-semibold px-6 py-2 rounded-full shadow transition-colors text-base"
             aria-label="Delete Trainee"
+            onClick={() => setShowDeleteDialog(true)}
           >
             Delete
           </button>
         </div>
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent className="rounded-2xl p-8 max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-xl text-red-600 font-bold">Delete Trainee?</DialogTitle>
+            </DialogHeader>
+            <div className="text-gray-700 mb-4">Are you sure you want to permanently delete this trainee and all their data? This action cannot be undone.</div>
+            {deleteError && <div className="text-red-500 mb-2">{deleteError}</div>}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowDeleteDialog(false)} disabled={deleting}>Cancel</Button>
+              <Button
+                className="bg-red-500 hover:bg-red-600 text-white font-semibold"
+                onClick={async () => {
+                  setDeleting(true);
+                  setDeleteError(null);
+                  try {
+                    const res = await fetch(`http://localhost:8000/trainees/${trainee.empId}`, {
+                      method: 'DELETE',
+                      credentials: 'include',
+                    });
+                    if (!res.ok) throw new Error('Failed to delete trainee.');
+                    setShowDeleteDialog(false);
+                    navigate(-1);
+                  } catch (err: unknown) {
+                    let message = 'Failed to delete trainee.';
+                    if (err instanceof Error) message = err.message;
+                    setDeleteError(message);
+                  } finally {
+                    setDeleting(false);
+                  }
+                }}
+                disabled={deleting}
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </Card>
     </div>
   );
