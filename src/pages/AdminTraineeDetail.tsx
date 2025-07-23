@@ -85,7 +85,7 @@ export default function AdminTraineeDetail() {
             <div className="text-gray-500 font-semibold">Specialization</div>
             <Badge variant="outline">{trainee.specialization}</Badge>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col items-end gap-2">
             <div>
               <div className="text-gray-500 font-semibold">Status</div>
               <Badge variant={trainee.status === 'active' ? 'default' : 'destructive'}>{trainee.status}</Badge>
