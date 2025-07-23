@@ -79,23 +79,25 @@ export default function AdminTraineeDetail() {
             <div className="text-gray-500 font-semibold">Phase</div>
             <Badge variant={trainee.phase === 2 ? "default" : "secondary"}>Phase {trainee.phase}</Badge>
           </div>
-          <div>
-            <div className="text-gray-500 font-semibold">Status</div>
-            <Badge variant={trainee.status === 'active' ? 'default' : 'destructive'}>{trainee.status}</Badge>
-          </div>
         </div>
         <div className="flex items-center justify-between mt-auto pt-4">
           <div>
             <div className="text-gray-500 font-semibold">Specialization</div>
             <Badge variant="outline">{trainee.specialization}</Badge>
           </div>
-          <button
-            className="bg-red-500 hover:bg-red-600 text-white font-semibold px-6 py-2 rounded-full shadow transition-colors text-base"
-            aria-label="Delete Trainee"
-            onClick={() => setShowDeleteDialog(true)}
-          >
-            Delete
-          </button>
+          <div className="flex items-center gap-4">
+            <div>
+              <div className="text-gray-500 font-semibold">Status</div>
+              <Badge variant={trainee.status === 'active' ? 'default' : 'destructive'}>{trainee.status}</Badge>
+            </div>
+            <button
+              className="bg-red-500 hover:bg-red-600 text-white font-semibold px-6 py-2 rounded-full shadow transition-colors text-base"
+              aria-label="Delete Trainee"
+              onClick={() => setShowDeleteDialog(true)}
+            >
+              Delete
+            </button>
+          </div>
         </div>
         {/* Delete Confirmation Dialog */}
         <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
