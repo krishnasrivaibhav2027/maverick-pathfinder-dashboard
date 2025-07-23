@@ -3,14 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Users, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const font = { fontFamily: 'Inter, ui-rounded, system-ui, sans-serif' };
 
@@ -22,6 +16,8 @@ interface Trainee {
   skill?: string;
   account_created?: boolean;
 }
+
+const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
 const TraineeList: React.FC = () => {
   const { batchId, skill } = useParams();
@@ -73,28 +69,27 @@ const TraineeList: React.FC = () => {
           Trainees in {skill}
         </h2>
       </div>
-      <div className="w-full">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Employee ID</TableHead>
-              <TableHead>Progress</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {trainees.map((trainee) => (
-              <TableRow key={trainee.empId}>
-                <TableCell>{trainee.name}</TableCell>
-                <TableCell>{trainee.email}</TableCell>
-                <TableCell>{trainee.empId}</TableCell>
-                <TableCell>
-                  <Progress value={trainee.progress || 0} className="w-full" />
-                </TableCell>
-                <TableCell>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {trainees.map((trainee) => (
+          <Card key={trainee.empId} className="rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300">
+            <div className="p-6">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-16 w-16">
+                  <AvatarFallback className="bg-orange-100 text-orange-500 font-bold text-2xl">
+                    {getInitials(trainee.name)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="text-lg font-bold">{trainee.name}</h3>
+                  <p className="text-sm text-gray-500">{trainee.email}</p>
+                  <p className="text-sm text-gray-500">{trainee.empId}</p>
+                </div>
+              </div>
+              <div className="mt-4">
+                <Progress value={trainee.progress || 0} className="w-full" />
+              </div>
+              <div className="mt-4 flex justify-between items-center">
+                <div>
                   {trainee.account_created ? (
                     <span className="text-green-500">Account Created</span>
                   ) : (
@@ -106,20 +101,18 @@ const TraineeList: React.FC = () => {
                       Create Account
                     </Button>
                   )}
-                </TableCell>
-                <TableCell>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => navigate(`/trainee/${trainee.empId}`)}
-                  >
-                    View Details
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate(`/trainee/${trainee.empId}`)}
+                >
+                  View Details
+                </Button>
+              </div>
+            </div>
+          </Card>
+        ))}
       </div>
     </div>
   );
