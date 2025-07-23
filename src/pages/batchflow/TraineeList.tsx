@@ -3,8 +3,14 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Users, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { Card } from "@/components/ui/card";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const font = { fontFamily: 'Inter, ui-rounded, system-ui, sans-serif' };
 
@@ -14,15 +20,27 @@ interface Trainee {
   empId: string;
   progress?: number;
   skill?: string;
+  account_created?: boolean;
 }
-
-const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
 
 const TraineeList: React.FC = () => {
   const { batchId, skill } = useParams();
   const [trainees, setTrainees] = useState<Trainee[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  const handleCreateAccount = (empId: string) => {
+    fetch(`http://localhost:8000/trainees/${empId}/create-account`, {
+      method: 'POST',
+    })
+      .then(res => res.json())
+      .then(() => {
+        // Refresh the trainee list to show the updated status
+        fetch(`http://localhost:8000/batches/${batchId}/skill-groups/${skill}/trainees`)
+          .then(res => res.json())
+          .then((data: Trainee[]) => setTrainees(data));
+      });
+  };
 
   useEffect(() => {
     if (!batchId || !skill) return;
@@ -51,42 +69,57 @@ const TraineeList: React.FC = () => {
           className="text-2xl font-bold flex items-center gap-2 text-orange-500 ml-4"
           style={font}
         >
+          <Users className="h-6 w-6" />
           Trainees in {skill}
         </h2>
       </div>
-      <div className="flex flex-row flex-wrap gap-8">
-        {trainees.map((trainee) => {
-          const progressValue = typeof trainee.progress === 'number' ? trainee.progress : 0;
-          return (
-            <div
-              key={trainee.email}
-              role="button"
-              tabIndex={0}
-              className="rounded-3xl bg-white p-8 flex flex-col items-center justify-center shadow-xl transition-transform hover:scale-105 border border-orange-100 min-w-[220px] max-w-[260px] min-h-[220px] cursor-pointer focus:outline-none focus:ring-2 focus:ring-orange-400"
-              style={{ boxShadow: '0 8px 32px 0 #ff7c2b22', ...font }}
-              onClick={() => navigate(`/trainee/${trainee.empId}`)}
-              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') navigate(`/trainee/${trainee.empId}`); }}
-            >
-              <Avatar className="h-14 w-14 mb-3 shadow">
-                <AvatarFallback className="bg-orange-100 text-orange-500 font-bold text-2xl">
-                  {getInitials(trainee.name)}
-                </AvatarFallback>
-              </Avatar>
-              <span className="text-xl font-extrabold text-orange-500 mb-1 tracking-tight text-center" style={{ letterSpacing: '-0.03em' }}>
-                {trainee.name}
-              </span>
-              <span className="text-base text-gray-500 font-semibold mb-1">{trainee.empId}</span>
-              <span className="text-base text-gray-400 font-medium mb-2">{trainee.email}</span>
-              <div className="flex flex-col items-center w-full mt-2">
-                <span className="text-sm text-gray-400 font-medium mb-1">Avg Progress:</span>
-                <div className="flex items-center gap-2 w-full justify-center">
-                  <Progress value={progressValue} className="w-24 h-2 bg-orange-100" style={{ accentColor: '#FF7C2B' }} />
-                  <span className="text-sm text-orange-500 font-bold">{progressValue}%</span>
-                </div>
-              </div>
-            </div>
-          );
-        })}
+      <div className="w-full">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Employee ID</TableHead>
+              <TableHead>Progress</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {trainees.map((trainee) => (
+              <TableRow key={trainee.empId}>
+                <TableCell>{trainee.name}</TableCell>
+                <TableCell>{trainee.email}</TableCell>
+                <TableCell>{trainee.empId}</TableCell>
+                <TableCell>
+                  <Progress value={trainee.progress || 0} className="w-full" />
+                </TableCell>
+                <TableCell>
+                  {trainee.account_created ? (
+                    <span className="text-green-500">Account Created</span>
+                  ) : (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleCreateAccount(trainee.empId)}
+                    >
+                      Create Account
+                    </Button>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => navigate(`/trainee/${trainee.empId}`)}
+                  >
+                    View Details
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
     </div>
   );
