@@ -493,10 +493,11 @@ const AdminDashboard = () => {
   // Fetch pending resumes on mount
   useEffect(() => {
     setPendingLoading(true);
-    fetch("http://localhost:8000/onboarding/pending-resumes")
+    fetch("http://localhost:8000/admin/notifications")
       .then(res => res.json())
       .then(data => {
-        setPendingResumes(data);
+        const resumeNotifications = data.filter(n => n.type === 'resume');
+        setPendingResumes(Array.isArray(resumeNotifications) ? resumeNotifications : []);
         setPendingError(null);
       })
       .catch(err => {
