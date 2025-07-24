@@ -11,7 +11,7 @@ except ImportError:
                 return
             yield batch
 
-from fastapi import FastAPI, HTTPException, Body, UploadFile, File, APIRouter, Depends, Path, WebSocket, WebSocketDisconnect, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Body, UploadFile, File, APIRouter, Depends, Path, WebSocket, WebSocketDisconnect, BackgroundTasks, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, HTMLResponse
 from bson import ObjectId
@@ -551,8 +551,6 @@ async def bulk_create_trainees(trainees_data: list = Body(...)):
     except Exception as e:
         print(f"❌ Bulk creation error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Bulk creation error: {str(e)}")
-
-from fastapi import Form
 
 @router.post("/signup/upload-resume")
 async def upload_resume_individual(file: UploadFile = File(...), name: str = Form(...), email: str = Form(...)):
