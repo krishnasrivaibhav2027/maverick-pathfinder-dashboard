@@ -1123,13 +1123,6 @@ async def signup(name: str = Body(...), email: str = Body(...)):
     await send_welcome_email_smtp(email, name, empId, temp_password)
     return {"status": "account_created", "message": "Check your email for your Employee ID and temporary password."}
 
-@router.get("/onboarding/pending-resumes")
-async def list_pending_resumes():
-    """Return a list of all pending resumes in the in-memory cache."""
-    return [
-        {"upload_id": upload_id, "filename": entry["filename"]}
-        for upload_id, entry in resume_cache.items()
-    ]
 
 @router.post("/onboarding/auto-allocate-and-create-account")
 async def auto_allocate_and_create_account(payload: dict = Body(...)):
