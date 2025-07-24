@@ -212,6 +212,10 @@ async def attempt_test(test_id: str, answers: dict = Body(...), user=Depends(get
 async def get_admin_notifications(user=Depends(get_current_user)):
     if user.get('role') != 'admin':
         raise HTTPException(status_code=403, detail='Admin only')
+
+    # Fetch pending resumes
+    pending_resumes = await crud_examples.get_trainees_by_resume_status('pending')
+
     # Find tests where passStatus is False and attempted is True, and not yet approved/disqualified
     cursor = crud_examples._db.tests.find({
         "passStatus": False,
@@ -219,15 +223,29 @@ async def get_admin_notifications(user=Depends(get_current_user)):
         "adminApproval": False,
         "disqualified": False
     })
+
     notifications = []
+
+    # Add resume notifications
+    for resume in pending_resumes:
+        notifications.append({
+            "type": "resume",
+            "upload_id": str(resume.id),
+            "filename": resume.resume_filename,
+            "trainee_name": resume.name
+        })
+
+    # Add test notifications
     async for test in cursor:
         notifications.append({
+            "type": "test",
             "test_id": str(test["_id"]),
             "traineeId": str(test["traineeId"]),
             "courseId": str(test["courseId"]),
             "score": test.get("score"),
             "attemptNumber": test.get("attemptNumber", 1)
         })
+
     return notifications
 
 @router.post('/admin/tests/{test_id}/approve')
@@ -279,6 +297,14 @@ async def get_trainees_by_skill_group(batch_id: str, skill_name: str, user=Depen
         trainee.account_created = user is not None
 
     return skill_group_trainees
+
+@router.get('/resumes/pending')
+async def get_pending_resumes(user=Depends(get_current_user)):
+    if user.get('role') != 'admin':
+        raise HTTPException(status_code=403, detail='Admin only')
+
+    pending_resumes = await crud_examples.get_trainees_by_resume_status('pending')
+    return pending_resumes
 
 @router.get('/batches')
 async def get_batches():

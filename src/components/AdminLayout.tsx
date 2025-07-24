@@ -34,11 +34,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [darkMode]);
 
-  // Fetch pending resumes for notification badge (optional, can be improved)
+  // Fetch notifications
   useEffect(() => {
-    fetch("http://localhost:8000/resumes/pending")
+    fetch("http://localhost:8000/admin/notifications")
       .then(res => res.json())
-      .then(data => setPendingResumes(Array.isArray(data) ? data : []))
+      .then(data => {
+        const resumeNotifications = data.filter(n => n.type === 'resume');
+        setPendingResumes(Array.isArray(resumeNotifications) ? resumeNotifications : []);
+      })
       .catch(() => setPendingResumes([]));
   }, []);
 

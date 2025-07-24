@@ -66,6 +66,13 @@ async def get_all_trainees():
         trainees.append(Trainee(**trainee))
     return trainees
 
+async def get_trainees_by_resume_status(status: str):
+    trainees_cursor = _db.trainees.find({'resume_status': status})
+    trainees = []
+    async for trainee in trainees_cursor:
+        trainees.append(Trainee(**trainee))
+    return trainees
+
 # --- Course CRUD ---
 async def create_course(course: Course):
     doc = course.dict(by_alias=True, exclude_unset=True)
