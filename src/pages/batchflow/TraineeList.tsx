@@ -54,18 +54,18 @@ const TraineeList: React.FC = () => {
           Trainees in {skill}
         </h2>
       </div>
-      <div className="w-full bg-white rounded-2xl shadow-lg p-4">
+      <div className="w-full bg-white/60 backdrop-blur-md rounded-3xl shadow-2xl border border-white/30 p-8">
         <div className="space-y-4">
           {trainees.map((trainee) => (
-            <div key={trainee.empId} className="p-4 rounded-lg border hover:bg-gray-50 transition-colors duration-200">
+            <div key={trainee.empId} className="p-4 rounded-2xl bg-white/80 shadow-md border border-orange-100 hover:bg-orange-50/80 transition-colors duration-300">
               <div className="grid grid-cols-6 gap-4 items-center">
                 <div className="col-span-2">
-                  <div className="font-medium">{trainee.name}</div>
+                  <div className="font-bold text-lg text-orange-600">{trainee.name}</div>
                   <div className="text-sm text-gray-500">{trainee.email}</div>
                   <div className="text-sm text-gray-500">{trainee.empId}</div>
                 </div>
                 <div className="col-span-2">
-                  <Progress value={trainee.progress || 0} className="w-full" />
+                  <Progress value={trainee.progress || 0} className="w-full h-3" />
                 </div>
                 <div>
                   {/* Placeholder for status */}
@@ -75,6 +75,7 @@ const TraineeList: React.FC = () => {
                     variant="outline"
                     size="sm"
                     onClick={() => navigate(`/trainee/${trainee.empId}`)}
+                    className="rounded-full font-semibold border-orange-200 text-orange-500 hover:bg-orange-100 hover:text-orange-600"
                   >
                     View Details
                   </Button>
