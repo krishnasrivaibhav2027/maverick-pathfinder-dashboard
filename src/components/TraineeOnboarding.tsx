@@ -79,6 +79,21 @@ const TraineeOnboarding = () => {
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (!selectedFile) return;
+
+    const nameInput = document.getElementById("name") as HTMLInputElement;
+    const emailInput = document.getElementById("email") as HTMLInputElement;
+
+    const name = nameInput.value;
+    const email = emailInput.value;
+
+    if (!name || !email) {
+      toast({
+        variant: "destructive",
+        title: "Missing Information",
+        description: "Please enter the trainee's name and email.",
+      });
+      return;
+    }
     
     // Check if file is ZIP or DOCX
     const isZip = selectedFile.type === "application/zip" || selectedFile.name.endsWith(".zip");
@@ -98,31 +113,19 @@ const TraineeOnboarding = () => {
     setIsUploading(true);
     const formData = new FormData();
     formData.append("file", selectedFile);
+    formData.append("name", name);
+    formData.append("email", email);
+
     try {
-      const response = await fetch("http://localhost:8000/onboarding/upload-resumes", {
+      const response = await fetch("http://localhost:8000/signup/upload-resume", {
         method: "POST",
         body: formData
       });
       const data = await response.json();
-      if (response.ok && data.batch_ids) {
-        const batchDetails: BatchSummary[] = [];
-        for (const batch_id of data.batch_ids) {
-          const res = await fetch(`http://localhost:8000/batch/${batch_id}`);
-          if (res.ok) {
-            const batch = await res.json();
-            batchDetails.push({
-              batch_id,
-              skill: batch.skill,
-              batch_number: batch.batch_number,
-              trainees: batch.trainees,
-              is_next_batch: batch.is_next_batch
-            });
-          }
-        }
-        setBatches(batchDetails);
-        toast({ title: "Batches created", description: `Found ${batchDetails.length} batches.` });
+      if (response.ok) {
+        toast({ title: "Resume Uploaded", description: "The resume has been submitted for approval." });
       } else {
-        toast({ variant: "destructive", title: "Batching failed", description: data.detail || "Failed to process resumes." });
+        toast({ variant: "destructive", title: "Upload failed", description: data.detail || "Failed to process resume." });
       }
     } catch (error) {
       toast({ variant: "destructive", title: "Upload failed", description: "Could not connect to backend." });
@@ -250,6 +253,16 @@ const TraineeOnboarding = () => {
         <div className="mb-6 text-gray-600">Upload a ZIP file of PDF resumes or a DOCX resume file to auto-allocate trainees into skill batches.</div>
         {/* File Upload Section */}
         <div className="space-y-4 mb-8">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="name">Trainee Name</Label>
+              <Input id="name" placeholder="John Doe" />
+            </div>
+            <div>
+              <Label htmlFor="email">Trainee Email</Label>
+              <Input id="email" type="email" placeholder="john.doe@example.com" />
+            </div>
+          </div>
           <div className="flex items-center gap-4">
             <Button
               onClick={() => fileInputRef.current?.click()}

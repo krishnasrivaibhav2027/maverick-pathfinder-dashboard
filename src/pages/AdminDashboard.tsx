@@ -506,18 +506,18 @@ const AdminDashboard = () => {
       .finally(() => setPendingLoading(false));
   }, []);
 
-  const handleApprove = async (upload_id: string) => {
+  const handleApprove = async (trainee_id: string) => {
     try {
       const res = await fetch("http://localhost:8000/onboarding/approve-resume", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(upload_id)
+        body: JSON.stringify(trainee_id)
       });
       const data = await res.json();
       if (res.ok) {
         setExtractedInfo(data);
         setShowExtracted(true);
-        setPendingResumes(pendingResumes.filter(r => r.upload_id !== upload_id));
+        setPendingResumes(pendingResumes.filter(r => r._id !== trainee_id));
         toast({ title: "Resume Approved", description: `Extracted info for ${data.name}` });
       } else {
         let errorMsg = data.detail;
@@ -530,16 +530,16 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleReject = async (upload_id: string) => {
+  const handleReject = async (trainee_id: string) => {
     try {
       const res = await fetch("http://localhost:8000/onboarding/reject-resume", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ upload_id })
+        body: JSON.stringify({ trainee_id })
       });
       if (res.ok) {
-        setPendingResumes(pendingResumes.filter(r => r.upload_id !== upload_id));
-        toast({ title: "Resume Rejected", description: `Resume ${upload_id} deleted from cache.` });
+        setPendingResumes(pendingResumes.filter(r => r._id !== trainee_id));
+        toast({ title: "Resume Rejected", description: `Resume for trainee ${trainee_id} rejected.` });
       } else {
         const data = await res.json();
         toast({ variant: "destructive", title: "Rejection Failed", description: data.detail || "Unknown error" });
@@ -1040,21 +1040,21 @@ const AdminDashboard = () => {
                 ) : (
                   <div className="space-y-4">
                     {pendingResumes.map(r => (
-                      <div key={r.upload_id} className="flex items-center gap-4 p-4 bg-orange-50 rounded-xl shadow">
+                      <div key={r._id} className="flex items-center gap-4 p-4 bg-orange-50 rounded-xl shadow">
                         <div className="flex-1">
-                          <div className="font-semibold">{r.filename}</div>
-                          <div className="text-xs text-gray-500">ID: {r.upload_id}</div>
+                          <div className="font-semibold">{r.resume_filename}</div>
+                          <div className="text-xs text-gray-500">ID: {r._id}</div>
                         </div>
                         <Button
                           variant="default"
-                          onClick={() => handleApprove(r.upload_id)}
+                          onClick={() => handleApprove(r._id)}
                           className="rounded-full bg-gradient-to-r from-orange-500 to-orange-400 text-white px-6 py-2 font-semibold shadow-md hover:from-orange-600 hover:to-orange-500 transition-colors"
                         >
                           Approve
                         </Button>
                         <Button
                           variant="destructive"
-                          onClick={() => handleReject(r.upload_id)}
+                          onClick={() => handleReject(r._id)}
                           className="rounded-full font-semibold shadow-md px-6 py-2 ml-2"
                         >
                           Reject

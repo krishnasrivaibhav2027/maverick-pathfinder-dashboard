@@ -44,6 +44,8 @@ class Trainee(BaseModel):
     currentSubcourse: Optional[ObjectId] = None
     completedCourses: List[CompletedCourse] = []
     completedQuizzes: List[CompletedQuiz] = []
+    resume_status: Optional[str] = None
+    resume_filename: Optional[str] = None
     model_config = {"arbitrary_types_allowed": True}
 
 class Subcourse(BaseModel):

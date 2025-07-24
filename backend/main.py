@@ -77,9 +77,6 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-# In-memory cache for uploaded resumes (keyed by upload/session ID)
-resume_cache = {}
-
 class Activity(BaseModel):
     description: str
     type: Optional[str] = None
@@ -556,16 +553,30 @@ async def bulk_create_trainees(trainees_data: list = Body(...)):
         raise HTTPException(status_code=500, detail=f"Bulk creation error: {str(e)}")
 
 @router.post("/signup/upload-resume")
-async def upload_resume_individual(file: UploadFile = File(...)):
-    """Accept a single resume upload, store in cache, return upload_id for admin approval flow."""
+async def upload_resume_individual(file: UploadFile = File(...), name: str = Body(...), email: str = Body(...)):
+    """Accept a single resume upload, create a new trainee with pending status, and store the resume."""
     file_content = await file.read()
-    upload_id = str(uuid.uuid4())
-    resume_cache[upload_id] = {
-        'filename': file.filename,
-        'content': file_content,
-        'timestamp': time.time()
-    }
-    return {"status": "pending_approval", "upload_id": upload_id}
+
+    # Create a new trainee with pending status
+    new_trainee = Trainee(
+        name=name,
+        email=email,
+        password="",  # No password until approved
+        resume_status="pending",
+        resume_filename=file.filename
+    )
+
+    # Store the new trainee in the database
+    result = await db.trainees.insert_one(new_trainee.model_dump())
+
+    # Store the resume content in a separate collection or gridfs
+    await db.resumes.insert_one({
+        "trainee_id": result.inserted_id,
+        "filename": file.filename,
+        "content": file_content
+    })
+
+    return {"status": "pending_approval", "trainee_id": str(result.inserted_id)}
 
 @router.post("/onboarding/upload-resumes")
 async def upload_resumes(file: UploadFile = File(...)):
@@ -601,13 +612,22 @@ async def upload_resumes(file: UploadFile = File(...)):
 
 # Admin approval endpoint (example)
 @router.post("/onboarding/approve-resume")
-async def approve_resume(upload_id: str = Body(...)):
-    """On approval, extract info from resume, return JSON, and delete from cache."""
-    entry = resume_cache.pop(upload_id, None)
-    if not entry:
-        raise HTTPException(status_code=404, detail="Resume not found in cache.")
-    filename = entry['filename']
-    content = entry['content']
+async def approve_resume(trainee_id: str = Body(...)):
+    """On approval, update trainee status and extract info from resume."""
+    trainee = await db.trainees.find_one({"_id": ObjectId(trainee_id)})
+    if not trainee:
+        raise HTTPException(status_code=404, detail="Trainee not found.")
+
+    # Update trainee status
+    await db.trainees.update_one({"_id": ObjectId(trainee_id)}, {"$set": {"resume_status": "approved"}})
+
+    # Get resume content
+    resume = await db.resumes.find_one({"trainee_id": ObjectId(trainee_id)})
+    if not resume:
+        raise HTTPException(status_code=404, detail="Resume not found.")
+
+    filename = resume['filename']
+    content = resume['content']
     if filename.lower().endswith('.pdf'):
         text = extract_text_from_pdf(content)
     elif filename.lower().endswith('.docx'):
@@ -620,19 +640,26 @@ async def approve_resume(upload_id: str = Body(...)):
     email = fast_result.get("email") if fast_result and fast_result.get("email") else 'unknown'
     skills = fast_result.get("skills") if fast_result and fast_result.get("skills") else ['unknown']
     skills = [s.lower() for s in skills]
+
+    # Update trainee with extracted info
+    await db.trainees.update_one(
+        {"_id": ObjectId(trainee_id)},
+        {"$set": {"name": name, "email": email, "specialization": skills[0] if skills else "Pending"}}
+    )
+
     return {"name": name, "email": email, "skills": skills}
 
 # Admin rejection endpoint (example)
 @router.post("/onboarding/reject-resume")
 async def reject_resume(payload: dict = Body(...)):
-    """On rejection, delete resume from cache."""
-    upload_id = payload.get("upload_id")
-    if not upload_id:
-        raise HTTPException(status_code=400, detail="upload_id is required")
-    entry = resume_cache.pop(upload_id, None)
-    if not entry:
-        raise HTTPException(status_code=404, detail="Resume not found in cache.")
-    return {"status": "deleted"}
+    """On rejection, update trainee status."""
+    trainee_id = payload.get("trainee_id")
+    if not trainee_id:
+        raise HTTPException(status_code=400, detail="trainee_id is required")
+
+    await db.trainees.update_one({"_id": ObjectId(trainee_id)}, {"$set": {"resume_status": "rejected"}})
+
+    return {"status": "rejected"}
 
 @router.post("/onboarding/create-accounts-for-batch")
 async def create_accounts_for_batch(request: dict = Body(...)):
