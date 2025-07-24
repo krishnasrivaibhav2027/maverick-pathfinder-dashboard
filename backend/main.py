@@ -576,6 +576,13 @@ async def upload_resume_individual(file: UploadFile = File(...), name: str = For
         "content": file_content
     })
 
+    # Log activity for admin notification
+    activity = Activity(
+        description=f"New resume uploaded by {name} ({file.filename})",
+        type="resume_uploaded"
+    )
+    await log_activity(activity)
+
     return {"status": "pending_approval", "trainee_id": str(result.inserted_id)}
 
 @router.post("/onboarding/upload-resumes")
