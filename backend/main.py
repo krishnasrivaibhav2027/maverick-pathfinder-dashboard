@@ -624,8 +624,11 @@ async def approve_resume(upload_id: str = Body(...)):
 
 # Admin rejection endpoint (example)
 @router.post("/onboarding/reject-resume")
-async def reject_resume(upload_id: str = Body(...)):
+async def reject_resume(payload: dict = Body(...)):
     """On rejection, delete resume from cache."""
+    upload_id = payload.get("upload_id")
+    if not upload_id:
+        raise HTTPException(status_code=400, detail="upload_id is required")
     entry = resume_cache.pop(upload_id, None)
     if not entry:
         raise HTTPException(status_code=404, detail="Resume not found in cache.")
