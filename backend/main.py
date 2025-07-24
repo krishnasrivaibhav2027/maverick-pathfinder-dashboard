@@ -552,8 +552,10 @@ async def bulk_create_trainees(trainees_data: list = Body(...)):
         print(f"❌ Bulk creation error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Bulk creation error: {str(e)}")
 
+from fastapi import Form
+
 @router.post("/signup/upload-resume")
-async def upload_resume_individual(file: UploadFile = File(...), name: str = Body(...), email: str = Body(...)):
+async def upload_resume_individual(file: UploadFile = File(...), name: str = Form(...), email: str = Form(...)):
     """Accept a single resume upload, create a new trainee with pending status, and store the resume."""
     file_content = await file.read()
 
