@@ -259,7 +259,28 @@ async def disqualify_trainee(test_id: str, user=Depends(get_current_user)):
     return {"message": "Trainee disqualified and termination process started."}
 
 # --- Batch Endpoints ---
+@router.get('/batches/{batch_id}/skill-groups/{skill_name}/trainees', response_model=List[Trainee])
+async def get_trainees_by_skill_group(batch_id: str, skill_name: str, user=Depends(get_current_user)):
+    if user.get('role') != 'admin':
+        raise HTTPException(status_code=403, detail='Admin only')
+
+    batch = await crud_examples.get_batch_by_id(batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found.")
+
+    trainees = await crud_examples.get_trainees_by_skill(skill_name)
+
+    # Filter trainees that are in the specified batch
+    batch_trainee_ids = [str(t_id) for t_id in batch.trainees]
+    skill_group_trainees = [t for t in trainees if str(t.id) in batch_trainee_ids]
+
+    for trainee in skill_group_trainees:
+        user = await crud_examples.get_user_by_empid(trainee.empId)
+        trainee.account_created = user is not None
+
+    return skill_group_trainees
+
 @router.get('/batches')
 async def get_batches():
     batches = await crud_examples.get_all_batches()
-    return [batch.dict() for batch in batches] 
+    return [batch.dict() for batch in batches]
