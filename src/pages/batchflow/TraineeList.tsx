@@ -14,6 +14,7 @@ interface Trainee {
   empId: string;
   progress?: number;
   skill?: string;
+  account_created?: boolean;
 }
 
 const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
@@ -23,6 +24,19 @@ const TraineeList: React.FC = () => {
   const [trainees, setTrainees] = useState<Trainee[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+
+  const handleCreateAccount = (empId: string) => {
+    fetch(`http://localhost:8000/trainees/${empId}/create-account`, {
+      method: 'POST',
+    })
+      .then(res => res.json())
+      .then(() => {
+        // Refresh the trainee list to show the updated status
+        fetch(`http://localhost:8000/batches/${batchId}/skill-groups/${skill}/trainees`)
+          .then(res => res.json())
+          .then((data: Trainee[]) => setTrainees(data));
+      });
+  };
 
   useEffect(() => {
     if (!batchId || !skill) return;
@@ -68,7 +82,17 @@ const TraineeList: React.FC = () => {
                   <Progress value={trainee.progress || 0} className="w-full h-3" />
                 </div>
                 <div>
-                  {/* Placeholder for status */}
+                  {trainee.account_created ? (
+                    <span className="text-green-500 font-semibold">Account Created</span>
+                  ) : (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleCreateAccount(trainee.empId)}
+                    >
+                      Create Account
+                    </Button>
+                  )}
                 </div>
                 <div className="flex justify-end">
                   <Button
