@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Bell, LogOut, Rocket, Sun, Moon } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 const accent = "#FF512F";
 const accent2 = "#F09819";
@@ -34,8 +35,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [darkMode]);
 
-  // Fetch notifications
-  useEffect(() => {
+  const fetchNotifications = () => {
     fetch("http://localhost:8000/admin/notifications")
       .then(res => res.json())
       .then(data => {
@@ -43,7 +43,50 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setPendingResumes(Array.isArray(resumeNotifications) ? resumeNotifications : []);
       })
       .catch(() => setPendingResumes([]));
+  };
+
+  // Fetch notifications on mount
+  useEffect(() => {
+    fetchNotifications();
   }, []);
+
+  const { toast } = useToast();
+  // WebSocket for real-time notifications
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    let reconnectTimeout: NodeJS.Timeout | null = null;
+    let isUnmounted = false;
+
+    function connectWS() {
+      ws = new WebSocket('ws://localhost:8000/ws/activities');
+      ws.onmessage = (event) => {
+        try {
+          const newActivity = JSON.parse(event.data);
+          if (newActivity.type === 'resume_uploaded') {
+            fetchNotifications();
+            toast({
+              title: "New Resume Uploaded",
+              description: newActivity.description,
+            });
+          }
+        } catch { /* ignore parse errors */ }
+      };
+      ws.onclose = () => {
+        if (!isUnmounted) {
+          reconnectTimeout = setTimeout(connectWS, 5000);
+        }
+      };
+      ws.onerror = () => {
+        ws?.close();
+      };
+    }
+    connectWS();
+    return () => {
+      isUnmounted = true;
+      ws?.close();
+      if (reconnectTimeout) clearTimeout(reconnectTimeout);
+    };
+  }, [toast]);
 
   return (
     <div className="min-h-screen bg-background text-foreground transition-colors duration-300">

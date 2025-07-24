@@ -418,45 +418,6 @@ const AdminDashboard = () => {
   // Get all unique activity types for filter dropdown
   const allActivityTypes = Array.from(new Set(allActivities.map(a => a.type)));
 
-  // WebSocket for real-time activities
-  useEffect(() => {
-    let ws: WebSocket | null = null;
-    let reconnectTimeout: NodeJS.Timeout | null = null;
-    let isUnmounted = false;
-
-    function connectWS() {
-      ws = new WebSocket('ws://localhost:8000/ws/activities');
-      ws.onmessage = (event) => {
-        try {
-          const newActivity: ActivityType = JSON.parse(event.data);
-          setActivities(prev => [newActivity, ...prev.slice(0, 2)]); // keep top 3
-          // Show toast for alerts
-          if (newActivity.type === 'alert') {
-            toast({
-              title: `Alert: ${newActivity.user?.name ? newActivity.user.name + ' ' : ''}${newActivity.message}`,
-              description: newActivity.details,
-              variant: 'destructive',
-              duration: 8000,
-            });
-          }
-        } catch { /* intentionally ignore JSON parse errors */ }
-      };
-      ws.onclose = () => {
-        if (!isUnmounted) {
-          reconnectTimeout = setTimeout(connectWS, 5000);
-        }
-      };
-      ws.onerror = () => {
-        ws?.close();
-      };
-    }
-    connectWS();
-    return () => {
-      isUnmounted = true;
-      ws?.close();
-      if (reconnectTimeout) clearTimeout(reconnectTimeout);
-    };
-  }, [toast]);
 
   // Fetch score distribution
   useEffect(() => {
