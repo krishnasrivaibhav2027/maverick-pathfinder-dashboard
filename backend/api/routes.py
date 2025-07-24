@@ -25,8 +25,7 @@ async def get_all_trainees(user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail='Admin only')
     trainees = await crud_examples.get_all_trainees()
     for trainee in trainees:
-        user = await crud_examples.get_user_by_empid(trainee.empId)
-        trainee.account_created = user is not None
+        trainee.account_created = trainee.password is not None
     return trainees
 
 @router.get('/trainees/{emp_id}', response_model=Trainee)
