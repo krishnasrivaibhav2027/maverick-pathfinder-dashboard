@@ -37,6 +37,7 @@ class Trainee(BaseModel):
     progress: dict = Field(default_factory=dict)  # {phase1: int, phase2: int, overall: int}
     specialization: Optional[str] = None
     password_is_temporary: bool = False
+    account_created: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
     last_login: Optional[datetime]
     currentCourse: Optional[ObjectId] = None
