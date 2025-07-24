@@ -78,8 +78,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 <div className="text-base text-gray-700">
                   {pendingResumes.length > 0 ? (
                     <>
-                      A trainee submitted resume needs to be approved for batch allocation.<br />
-                      <b>Check onboarding section.</b>
+                      A trainee needs to be approved, check the onboarding section
                     </>
                   ) : (
                     <span>No notifications.</span>
