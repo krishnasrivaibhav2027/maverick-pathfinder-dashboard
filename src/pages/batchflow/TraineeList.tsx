@@ -40,14 +40,11 @@ const TraineeList: React.FC = () => {
 
   useEffect(() => {
     if (!batchId || !skill) return;
-    fetch(`http://localhost:8000/batches/${batchId}/skill-groups/${skill}/trainees`)
+    fetch(`http://localhost:8000/trainees`)
       .then(res => res.json())
       .then((data: Trainee[]) => {
-        const traineesWithStatus = data.map(t => ({
-          ...t,
-          account_created: t.account_created !== undefined ? t.account_created : false
-        }));
-        setTrainees(traineesWithStatus);
+        const filteredTrainees = data.filter(t => t.skill === skill);
+        setTrainees(filteredTrainees);
       })
       .finally(() => setLoading(false));
   }, [batchId, skill]);
