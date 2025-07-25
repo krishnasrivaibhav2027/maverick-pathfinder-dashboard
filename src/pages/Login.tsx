@@ -266,7 +266,7 @@ export default function LoginPage() {
                         });
                         const data = await response.json();
                         if (response.ok && data.status === 'pending_approval') {
-                          toast({ title: 'Resume Uploaded', description: 'Wait for admin approval to receive credentials.' });
+                          toast({ title: 'Resume Uploaded', description: 'Wait for admin approval to get credentials' });
                           setTab('wait_approval');
                         } else {
                           let errorMsg = data.detail;
